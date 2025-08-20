@@ -1,0 +1,356 @@
+name: chatapp-cluster
+
+networks:
+  chat_cluster_network:
+    driver: bridge
+
+services:
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.6.4
+    container_name: etcd
+    hostname: etcd
+    networks:
+      - chat_cluster_network
+    volumes:
+      - ./etcd/data:/var/log/etcd:rw,delegated,Z,rprivate
+    command: >
+      /usr/local/bin/etcd
+      --name etcd
+      --data-dir /var/log/etcd
+      --listen-client-urls http://0.0.0.0:2379
+      --advertise-client-urls http://etcd:2379
+      --listen-peer-urls http://0.0.0.0:2380
+      --initial-advertise-peer-urls http://etcd:2380
+      --initial-cluster etcd=http://etcd:2380
+      --log-level info
+      --logger zap
+      --log-outputs stderr
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/etcdctl", "--endpoints=http://etcd:2379", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # A pool of identical PostgreSQL nodes managed by Patroni.
+  pg-node-1:
+    build:
+      context: ./postgresql
+      dockerfile: Dockerfile
+    container_name: pg-node-1
+    hostname: pg-node-1
+    networks:
+      - chat_cluster_network
+    volumes:
+      # Configuration
+      - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
+      # Scripts
+      - ./postgresql/migrations:/etc/patroni/migrations:ro
+      - ./postgresql/scripts/init.sql:/etc/patroni/init.sql:ro
+      - ./postgresql/scripts/entrypoint.sh:/etc/patroni/entrypoint.sh:ro
+      - ./postgresql/scripts/post_init.sh:/etc/patroni/post_init.sh:ro
+      - ./postgresql/scripts/on_role_change.sh:/etc/patroni/on_role_change.sh
+      - ./postgresql/scripts/on_start.sh:/etc/patroni/on_start.sh
+      - ./postgresql/scripts/on_stop.sh:/etc/patroni/on_stop.sh
+      - ./postgresql/scripts/pcp_config.sh:/etc/patroni/pcp_config.sh
+      - ./postgresql/scripts/interpolate_patroni_config.sh:/etc/patroni/interpolate_patroni_config.sh:ro
+      # Data directory
+      - ./postgresql/data/pg_data_1:/var/lib/postgresql/data:rw,delegated,Z,rprivate
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./postgresql/secrets/passwords/postgresql/admin.pass:/run/secrets/db_user_admin.pass
+      - ./postgresql/secrets/passwords/postgresql/chat_ro.pass:/run/secrets/db_user_chat_ro.pass
+      - ./postgresql/secrets/passwords/postgresql/chat_rw.pass:/run/secrets/db_user_chat_rw.pass
+      - ./postgresql/secrets/passwords/postgresql/pgmonitor.pass:/run/secrets/db_user_pgmonitor.pass
+      - ./postgresql/secrets/passwords/postgresql/pgpool_health.pass:/run/secrets/db_user_pgpool_health.pass
+      - ./postgresql/secrets/passwords/postgresql/replicator.pass:/run/secrets/db_user_replicator.pass
+      - ./postgresql/secrets/passwords/postgresql/rewinder.pass:/run/secrets/db_user_rewinder.pass
+      - ./postgresql/secrets/passwords/patroni/admin.pass:/run/secrets/patroni_user_admin.pass
+      - ./pgpool/secrets/pcppass.txt:/tmp/configs/pcppass
+    environment:
+      - PATRONI_NAME=pg-node-1
+      - PATRONI_RESTAPI_CONNECT_ADDRESS=pg-node-1:8008
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-1:5432
+      - PGPOOL_BACKEND_NODE_ID=0
+    depends_on:
+      etcd:
+        condition: service_healthy
+    init: true
+    entrypoint: [ "/etc/patroni/entrypoint.sh" ]
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD_FILE=/run/secrets/db_user_replicator.pass gosu postgres pg_isready -U replicator -d postgres -q"]
+      interval: 10s
+      timeout: 5s
+      retries: 60 # Allow up to 10 minutes for initial setup
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '12'
+
+  pg-node-2:
+    build:
+      context: ./postgresql
+      dockerfile: Dockerfile
+    container_name: pg-node-2
+    hostname: pg-node-2
+    networks:
+      - chat_cluster_network
+    volumes:
+      # Configuration
+      - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
+      # Scripts
+      - ./postgresql/migrations:/etc/patroni/migrations:ro
+      - ./postgresql/scripts/init.sql:/etc/patroni/init.sql:ro
+      - ./postgresql/scripts/entrypoint.sh:/etc/patroni/entrypoint.sh:ro
+      - ./postgresql/scripts/post_init.sh:/etc/patroni/post_init.sh:ro
+      - ./postgresql/scripts/on_role_change.sh:/etc/patroni/on_role_change.sh
+      - ./postgresql/scripts/on_start.sh:/etc/patroni/on_start.sh
+      - ./postgresql/scripts/on_stop.sh:/etc/patroni/on_stop.sh
+      - ./postgresql/scripts/pcp_config.sh:/etc/patroni/pcp_config.sh
+      - ./postgresql/scripts/interpolate_patroni_config.sh:/etc/patroni/interpolate_patroni_config.sh:ro
+      # Data directory
+      - ./postgresql/data/pg_data_2:/var/lib/postgresql/data:rw,delegated,Z,rprivate
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./postgresql/secrets/passwords/postgresql/admin.pass:/run/secrets/db_user_admin.pass
+      - ./postgresql/secrets/passwords/postgresql/chat_ro.pass:/run/secrets/db_user_chat_ro.pass
+      - ./postgresql/secrets/passwords/postgresql/chat_rw.pass:/run/secrets/db_user_chat_rw.pass
+      - ./postgresql/secrets/passwords/postgresql/pgmonitor.pass:/run/secrets/db_user_pgmonitor.pass
+      - ./postgresql/secrets/passwords/postgresql/pgpool_health.pass:/run/secrets/db_user_pgpool_health.pass
+      - ./postgresql/secrets/passwords/postgresql/replicator.pass:/run/secrets/db_user_replicator.pass
+      - ./postgresql/secrets/passwords/postgresql/rewinder.pass:/run/secrets/db_user_rewinder.pass
+      - ./postgresql/secrets/passwords/patroni/admin.pass:/run/secrets/patroni_user_admin.pass
+      - ./pgpool/secrets/pcppass.txt:/tmp/configs/pcppass
+    environment:
+      - PATRONI_NAME=pg-node-2
+      - PATRONI_RESTAPI_CONNECT_ADDRESS=pg-node-2:8008
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-2:5432
+      - PGPOOL_BACKEND_NODE_ID=1
+    depends_on:
+      etcd:
+        condition: service_healthy
+    init: true
+    entrypoint: [ "/etc/patroni/entrypoint.sh" ]
+    stop_grace_period: 30s
+    healthcheck:
+      test: [ "CMD-SHELL", "PGPASSWORD_FILE=/run/secrets/db_user_replicator.pass gosu postgres pg_isready -U replicator -d postgres -q" ]
+      interval: 10s
+      timeout: 5s
+      retries: 60 # Allow up to 10 minutes for initial setup
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '12'
+
+  pg-node-3:
+    build:
+      context: ./postgresql
+      dockerfile: Dockerfile
+    container_name: pg-node-3
+    hostname: pg-node-3
+    networks:
+      - chat_cluster_network
+    volumes:
+      # Configuration
+      - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
+      # Scripts
+      - ./postgresql/migrations:/etc/patroni/migrations:ro
+      - ./postgresql/scripts/init.sql:/etc/patroni/init.sql:ro
+      - ./postgresql/scripts/entrypoint.sh:/etc/patroni/entrypoint.sh:ro
+      - ./postgresql/scripts/post_init.sh:/etc/patroni/post_init.sh:ro
+      - ./postgresql/scripts/on_role_change.sh:/etc/patroni/on_role_change.sh
+      - ./postgresql/scripts/on_start.sh:/etc/patroni/on_start.sh
+      - ./postgresql/scripts/on_stop.sh:/etc/patroni/on_stop.sh
+      - ./postgresql/scripts/pcp_config.sh:/etc/patroni/pcp_config.sh
+      - ./postgresql/scripts/interpolate_patroni_config.sh:/etc/patroni/interpolate_patroni_config.sh:ro
+      # Data directory
+      - ./postgresql/data/pg_data_3:/var/lib/postgresql/data:rw,delegated,Z,rprivate
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./postgresql/secrets/passwords/postgresql/admin.pass:/run/secrets/db_user_admin.pass
+      - ./postgresql/secrets/passwords/postgresql/chat_ro.pass:/run/secrets/db_user_chat_ro.pass
+      - ./postgresql/secrets/passwords/postgresql/chat_rw.pass:/run/secrets/db_user_chat_rw.pass
+      - ./postgresql/secrets/passwords/postgresql/pgmonitor.pass:/run/secrets/db_user_pgmonitor.pass
+      - ./postgresql/secrets/passwords/postgresql/pgpool_health.pass:/run/secrets/db_user_pgpool_health.pass
+      - ./postgresql/secrets/passwords/postgresql/replicator.pass:/run/secrets/db_user_replicator.pass
+      - ./postgresql/secrets/passwords/postgresql/rewinder.pass:/run/secrets/db_user_rewinder.pass
+      - ./postgresql/secrets/passwords/patroni/admin.pass:/run/secrets/patroni_user_admin.pass
+      - ./pgpool/secrets/pcppass.txt:/tmp/configs/pcppass
+    environment:
+      - PATRONI_NAME=pg-node-3
+      - PATRONI_RESTAPI_CONNECT_ADDRESS=pg-node-3:8008
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-3:5432
+      - PGPOOL_BACKEND_NODE_ID=2
+    depends_on:
+      etcd:
+        condition: service_healthy
+    init: true
+    entrypoint: [ "/etc/patroni/entrypoint.sh" ]
+    stop_grace_period: 30s
+    healthcheck:
+      test: [ "CMD-SHELL", "PGPASSWORD_FILE=/run/secrets/db_user_replicator.pass gosu postgres pg_isready -U replicator -d postgres -q" ]
+      interval: 10s
+      timeout: 5s
+      retries: 60 # Allow up to 10 minutes for initial setup
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '12'
+
+  pgpool:
+    build:
+      context: ./pgpool
+      dockerfile: Dockerfile
+    container_name: pgpool
+    hostname: pgpool
+    networks:
+      - chat_cluster_network
+    ports:
+      - "9999:9999"
+    volumes:
+      # Configuration
+      - ./pgpool/conf/pcp.conf:/etc/pgpool2/pcp.conf
+      - ./pgpool/conf/pgpool.conf:/tmp/pgpool.conf.template:ro
+      - ./pgpool/conf/pool_hba.conf:/etc/pgpool2/pool_hba.conf:ro
+      # SSL Certificates
+      - ./pgpool/certs:/etc/pgpool2/certs
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./pgpool/secrets/pgpoolkey.txt:/var/lib/postgresql/.pgpoolkey
+      - ./pgpool/secrets/pcppass.txt:/var/lib/postgresql/.pcppass
+      - ./postgresql/secrets/passwords/postgresql/pgpool_health.pass:/run/secrets/db_user_pgpool_health.pass:ro
+      - ./postgresql/secrets/passwords/postgresql/chat_ro.pass:/run/secrets/db_external_user_chat_ro.pass:ro
+      - ./postgresql/secrets/passwords/postgresql/chat_rw.pass:/run/secrets/db_external_user_chat_rw.pass:ro
+      # Scripts
+      - ./pgpool/scripts/pre_init.sh:/etc/pgpool2/custom_pre_init.sh:ro
+      - ./pgpool/scripts/follow_primary.sh:/etc/pgpool2/custom_follow_primary.sh:ro
+      - ./pgpool/scripts/failover.sh:/etc/pgpool2/custom_failover.sh:ro
+      - ./pgpool/scripts/failback.sh:/etc/pgpool2/custom_failback.sh:ro
+    depends_on:
+      pg-node-1:
+        condition: service_healthy
+      pg-node-2:
+        condition: service_healthy
+      pg-node-3:
+        condition: service_healthy
+    command: >
+      sh -c "
+        chown postgres:postgres /var/lib/postgresql/.pgpoolkey && chmod 400 /var/lib/postgresql/.pgpoolkey &&
+        chown postgres:postgres /etc/pgpool2/pcp.conf && chmod 400 /etc/pgpool2/pcp.conf &&
+        chown -R postgres:postgres /etc/pgpool2/certs && chmod -R 400 /etc/pgpool2/certs && chmod 500 /etc/pgpool2/certs &&
+        bash /etc/pgpool2/custom_pre_init.sh &&
+        chown postgres:postgres /var/lib/postgresql/.pcppass && chmod 400 /var/lib/postgresql/.pcppass && 
+        rm -f /var/run/pgpool/pgpool.pid && 
+        exec gosu postgres /usr/sbin/pgpool -n -f /etc/pgpool2/pgpool.conf
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD_FILE=/run/secrets/db_external_user_chat_ro.pass gosu postgres pg_isready -h pgpool -p 9999 -U chat_ro -d chat_db -q"]
+      interval: 60s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '4'
+
+  pg-exporter:
+    build:
+      context: ./pg-exporter
+      dockerfile: Dockerfile
+    container_name: pg-exporter
+    hostname: pg-exporter
+    networks:
+      - chat_cluster_network
+    volumes:
+      - ./pg-exporter/postgres_exporter.yml:/tmp/postgres_exporter.yml.template:ro
+      - ./pg-exporter/entrypoint.sh:/tmp/entrypoint.sh:ro
+      - ./postgresql/secrets/passwords/postgresql/pgmonitor.pass:/run/secrets/db_user_pgmonitor.pass:ro
+    entrypoint: [ '/tmp/entrypoint.sh' ]
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:9187/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    depends_on:
+      pgpool:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 200MB
+          cpus: '1'
+
+  prometheus:
+    image: 'prom/prometheus:v3.5.0'
+    container_name: prometheus
+    hostname: prometheus
+    networks:
+      - chat_cluster_network
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/data:/var/lib/prometheus/data:rw,delegated,Z,rprivate
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/var/lib/prometheus/data'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      pg-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 2GB
+          cpus: '4'
+
+  grafana:
+    image: 'grafana/grafana:12.3.0-17750354453'
+    container_name: grafana
+    hostname: grafana
+    networks:
+      - chat_cluster_network
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning/:/etc/grafana/provisioning/:ro
+      - ./grafana/dashboards/:/etc/grafana/dashboards/:ro
+      - ./grafana/data:/var/lib/grafana:rw,delegated,Z,rprivate
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-s", "--fail", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          memory: 1GB
+          cpus: '2'
