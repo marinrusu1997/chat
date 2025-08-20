@@ -1,0 +1,116 @@
+# This file configures Patroni for a high-availability PostgreSQL cluster.
+# The settings here will be used by all nodes in the cluster.
+# Environment variables will override these settings if they are set.
+#
+# See https://patroni.readthedocs.io/en/latest/yaml_configuration.html
+
+# ---- Global/Universal ----
+namespace: /patroni/service
+scope: chat-postgresql-cluster
+
+# ---- Log ----
+log:
+  format: '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
+
+# ---- Bootstrap ----
+bootstrap:
+  method: initdb
+  initdb:
+    - {"auth-host": "scram-sha-256"}
+    - {"auth-local": "scram-sha-256"}
+    - {"encoding": "UTF8"}
+    - {"locale": "en_US.UTF-8"}
+    - {"lc-collate": "en_US.UTF-8"}
+    - {"lc-ctype": "en_US.UTF-8"}
+    - "data-checksums"
+  post_init: 'bash /etc/patroni/post_init.sh'
+  dcs:
+    postgresql:
+      use_pg_rewind: true
+      parameters:
+        max_connections: 800
+        max_worker_processes: 48 # 4 x 12 cores for parallel queries
+
+# ---- Etcd v3 ----
+etcd3:
+  hosts:
+    - etcd:2379
+
+# ---- PostgreSQL ----
+postgresql:
+  data_dir: /var/lib/postgresql/data
+  bin_dir: /usr/lib/postgresql/16/bin
+  listen: '0.0.0.0:5432'
+  parameters:
+    shared_preload_libraries: pg_cron,pg_stat_statements
+    cron.use_background_workers: on # see https://github.com/citusdata/pg_cron?tab=readme-ov-file
+    cron.max_running_jobs: 12 # 12 available cores (see docker-compose.yml)
+    max_parallel_workers: 12 # 12 available cores (see docker-compose.yml)
+    max_parallel_workers_per_gather: 4 # 4 workers per query (available cores / 3)
+    password_encryption: scram-sha-256
+    wal_buffers: 64MB
+    max_wal_size: 1560MB
+    min_wal_size: 360MB
+    shared_buffers: 1536MB
+    effective_cache_size: 4608MB
+    work_mem: 64MB
+    maintenance_work_mem: 512MB
+    autovacuum_max_workers: 4
+    autovacuum_naptime: 20s
+    autovacuum_vacuum_cost_delay: 1ms
+    autovacuum_vacuum_cost_limit: 2000
+    idle_in_transaction_session_timeout: 1min
+    timezone: 'UTC'
+    log_lock_waits: on
+    log_min_messages: log
+
+  callbacks:
+    on_role_change: '/etc/patroni/on_role_change.sh'
+    on_start: '/etc/patroni/on_start.sh'
+    on_stop: '/etc/patroni/on_stop.sh'
+
+  authentication:
+    superuser:
+      username: admin
+      password: {{SUPERUSER_PASSWORD_PLACEHOLDER}}
+    replication:
+      username: replicator
+      password: {{REPLICATION_PASSWORD_PLACEHOLDER}}
+    rewind:
+      username: rewinder
+      password: {{REWIND_PASSWORD_PLACEHOLDER}}
+
+  pg_hba:
+    # TYPE    DATABASE      USER              ADDRESS         METHOD          Comments
+    - local   all           all                               scram-sha-256   # local connections for all users for debugging
+    - host    postgres      admin             127.0.0.1/32    scram-sha-256   # localhost connection for admin used by Patroni to create superuser, replication, and rewind users
+    - host    chat_db       chat_ro           172.18.0.0/16   scram-sha-256   # read-only connections from application servers in the Docker network
+    - host    chat_db       chat_rw           172.18.0.0/16   scram-sha-256   # read-write connections from application servers in the Docker network
+    - host    postgres      pgpool_health     172.18.0.0/16   scram-sha-256   # health checks from Pgpool-II in the Docker network
+    - host    postgres      pgmonitor         172.18.0.0/16   scram-sha-256   # monitoring connections from Docker network
+    - host    postgres      replicator        172.18.0.0/16   scram-sha-256   # replication connections from other nodes in the Docker network
+    - host    replication   replicator        172.18.0.0/16   scram-sha-256   # replication connections from other nodes in the Docker network
+    - host    postgres      replicator        127.0.0.1/32    scram-sha-256   # replication connections from same node (used by Patroni)
+    - host    replication   replicator        127.0.0.1/32    scram-sha-256   # replication connections from same node (used by Patroni)
+    - host    postgres      rewinder          172.18.0.0/16   scram-sha-256   # pg_rewind connections from Docker network
+    - host    replication   rewinder          172.18.0.0/16   scram-sha-256   # pg_rewind connections from Docker network
+    - host    postgres      rewinder          127.0.0.1/32    scram-sha-256   # pg_rewind connections from same node (used by Patroni)
+    - host    replication   rewinder          127.0.0.1/32    scram-sha-256   # pg_rewind connections from same node (used by Patroni)
+
+# ---- REST API ----
+restapi:
+  listen: '0.0.0.0:8008'
+  authentication:
+    username: patroni_admin
+    password: {{RESTAPI_PASSWORD_PLACEHOLDER}}
+  http_extra_headers:
+    'X-Frame-Options': 'SAMEORIGIN'
+    'X-XSS-Protection': '1; mode=block'
+    'X-Content-Type-Options': 'nosniff'
+  https_extra_headers:
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
+  request_queue_size: 10
+
+# ---- Watchdog ----
+watchdog:
+  mode: off

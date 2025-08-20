@@ -1,0 +1,10 @@
+auth_modules:
+  pgmon:
+    type: userpass
+    userpass:
+      username: pgmonitor
+      password: {{PGMONITOR_PASSWORD_PLACEHOLDER}}
+    options:
+      # options become key=value parameters of the DSN
+      sslmode: disable
+      dbname: postgres

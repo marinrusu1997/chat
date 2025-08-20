@@ -1,0 +1,81 @@
+version: '3'
+
+vars:
+  # --- sqlc Tool Configuration ---
+  SQLC_VERSION: 1.30.0
+  SQLC_OS: windows
+  SQLC_ARCH: amd64
+  SQLC_ZIP: sqlc_{{.SQLC_VERSION}}_{{.SQLC_OS}}_{{.SQLC_ARCH}}.zip
+  SQLC_URL: https://github.com/sqlc-dev/sqlc/releases/download/v{{.SQLC_VERSION}}/{{.SQLC_ZIP}}
+
+  # --- Go and Project Paths ---
+  GOBIN: '{{.USERPROFILE}}\go\bin'
+  SQL_SCHEMA_FILE: ./deployment/docker/postgresql/scripts/init.sql
+  SQL_QUERIES_FILE: ./deployment/docker/postgresql/scripts/queries.sql
+  GEN_CODE_DIR: ./src/postgres/gen
+
+tasks:
+  default:
+    cmds:
+      - task: db:generate
+
+  tools:sqlc:
+    desc: 'Downloads and installs the sqlc binary if not already present.'
+    vars:
+      SQLC_EXE: '{{.GOBIN}}\sqlc.exe'
+    status:
+      - 'command -v sqlc'
+    cmds:
+      - echo "Installing sqlc v{{.SQLC_VERSION}}..."
+      # Ensure the target directory exists
+      - mkdir -p {{.GOBIN}}
+      # Download the release zip filez
+      - curl -L -o {{.SQLC_ZIP}} {{.SQLC_URL}}
+      # Unzip the archive
+      - unzip {{.SQLC_ZIP}} sqlc.exe
+      # Move the executable to the final destination, overwriting if necessary
+      - mv -f sqlc.exe "{{.SQLC_EXE}}"
+      # Clean up the downloaded zip file
+      - rm -rf {{.SQLC_ZIP}}
+      - 'echo "✅ sqlc installed successfully."'
+
+  tools:reflex:
+    desc: 'Install reflex CLI tool'
+    status:
+      - 'command -v reflex'
+    cmds:
+      - go install github.com/cespare/reflex@latest
+    silent: true
+
+  db:generate:
+    desc: 'Generate Go code from SQL schema and queries using sqlc.'
+    deps: [tools:sqlc]
+    cmds:
+      - sqlc -f sqlc.yaml generate
+    sources:
+      # SOURCES: Now explicitly watch the specific files for changes.
+      - '{{.SQL_SCHEMA_FILE}}'
+      - '{{.SQL_QUERIES_FILE}}'
+      - sqlc.yaml
+    generates:
+      - '{{.GEN_CODE_DIR}}/copyfrom.go'
+      - '{{.GEN_CODE_DIR}}/db.go'
+      - '{{.GEN_CODE_DIR}}/models.go'
+      - '{{.GEN_CODE_DIR}}/querier.go'
+      - '{{.GEN_CODE_DIR}}/queries.sql.go'
+    method: checksum
+
+  db:clean:
+    desc: 'Remove generated database Go files.'
+    cmds:
+      - rimraf {{.GEN_CODE_DIR}}
+
+  db:watch:
+    desc: 'Watch SQL files and regenerate Go code on changes.'
+    deps: [tools:sqlc,tools:reflex]
+    cmds:
+      # WATCH: The reflex command can still watch for any .sql change in the directory,
+      # or you could make it more complex to watch specific files. Watching the
+      # directory is often still practical here.
+      - |
+        reflex --start-service -r '\.sql$' --watch-dir ./deployment/docker/postgresql/scripts -- sh -c 'task db:generate && echo "✅ sqlc generated successfully at $(date -u)"'
