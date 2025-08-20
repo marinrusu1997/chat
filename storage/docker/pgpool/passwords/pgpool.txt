@@ -1,0 +1,1 @@
+PGPOOL_POSTGRES_PASSWORD=my-secure-db-password

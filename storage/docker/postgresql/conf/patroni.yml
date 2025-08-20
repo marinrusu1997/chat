@@ -1,0 +1,111 @@
+# This file configures Patroni for a high-availability PostgreSQL cluster.
+# The settings here will be used by all nodes in the cluster.
+# Environment variables will override these settings if they are set.
+# Patroni's global settings
+scope: chat-db-cluster
+namespace: /service/
+
+# Etcd settings for Patroni to manage cluster state.
+# We use the etcd3 section to explicitly tell Patroni to use the v3 API.
+etcd3:
+  hosts:
+    - etcd:2379
+
+# PostgreSQL configuration
+postgresql:
+  # The directory where PostgreSQL stores its data.
+  data_dir: /pgdata/data
+
+  # PostgreSQL version-specific settings.
+  bin_dir: /usr/lib/postgresql/16/bin
+
+  create_replica_methods:
+    - basebackup
+
+  # Patroni will automatically manage the connection information for replication.
+  connect_address: '0.0.0.0:5432'
+  listen: '0.0.0.0:5432'
+
+  # PostgreSQL parameters
+  parameters:
+    # We must load pg_cron on all nodes, so if one becomes master, the scheduler works.
+    shared_preload_libraries: pg_cron,pg_partman_bgw
+    # "cron.database_name" is commented out to prevent a race condition at startup.
+    # It can be set later via "ALTER SYSTEM SET cron.database_name = 'chat_db';"
+    # cron.database_name: chat_db
+    password_encryption: scram-sha-256
+    wal_level: replica
+    max_wal_senders: 5
+    max_replication_slots: 5
+    wal_buffers: 64MB
+    max_wal_size: 1560MB
+    min_wal_size: 360MB
+    shared_buffers: 1536MB
+    effective_cache_size: 4608MB
+    work_mem: 64MB
+    maintenance_work_mem: 512MB
+    max_connections: 200
+    max_worker_processes: 12
+    max_parallel_workers: 6
+    max_parallel_workers_per_gather: 3
+    autovacuum_max_workers: 4
+    autovacuum_naptime: 20s
+    autovacuum_vacuum_cost_delay: 1ms
+    autovacuum_vacuum_cost_limit: 2000
+    idle_in_transaction_session_timeout: 1min
+
+  authentication:
+    replication:
+      username: replication_user
+      password: 'my-secure-repl-password'
+    superuser:
+      username: appuser
+      password: 'my-secure-db-password'
+
+  # Host-based authentication settings.
+  # This is a critical part of securing the database and enabling replication.
+  # We use the more permissive '0.0.0.0/0' to allow connections within the
+  # private Docker network.
+  pg_hba:
+    - local   all           postgres          peer
+    - local   all           all               scram-sha-256
+    - host    all           postgres          127.0.0.1/32    trust
+    - host    replication   replication_user  0.0.0.0/0       scram-sha-256
+    - host    all           all               0.0.0.0/0       scram-sha-256
+
+# Settings for Patroni's automated bootstrap process.
+bootstrap:
+  # We will use the standard 'initdb' method to create the initial cluster.
+  method: initdb
+
+  # This section contains the commands and settings for 'initdb'
+  initdb:
+    - {"auth-host": "scram-sha-256"}
+    - {"encoding": "UTF8"}
+    - "data-checksums"
+    - {"locale": "en_US.UTF-8"}
+    - {"lc-collate": "en_US.UTF-8"}
+    - {"lc-ctype": "en_US.UTF-8"}
+
+  # Add a post-init hook to run your schema script after Patroni initializes the database.
+  # In patroni.yml, replace the post_init section with this one
+  post_init: sh /etc/patroni/post_init.sh
+
+  # This dcs section is required for bootstrap.
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    postgresql:
+      use_slots: true
+      parameters:
+        # These parameters are written to etcd for the whole cluster
+        shared_preload_libraries: pg_cron,pg_partman_bgw
+        password_encryption: scram-sha-256
+        wal_level: replica
+        max_wal_senders: 5
+        max_replication_slots: 5
+
+# Rest API settings for Patroni health checks and backend discovery
+restapi:
+  listen: 0.0.0.0:8008

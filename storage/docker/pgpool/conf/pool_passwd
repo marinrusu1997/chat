@@ -1,0 +1,4 @@
+# Pgpool-II User Passwords
+# This file contains the hashed passwords for Pgpool-II users.
+appuser:AESs9bbNJZGffDa+o/iNUJZEDEpbuqHJd0E4x67brDEbCA=
+app_rw:AESs9bbNJZGffDa+o/iNUJZEDEpbuqHJd0E4x67brDEbCA=
