@@ -495,7 +495,7 @@ func (ns NullChattingDeviceRoleEnum) Value() (driver.Value, error) {
 }
 
 type Chat struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -508,15 +508,15 @@ type Chat struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat0 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -529,15 +529,15 @@ type Chat0 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat1 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -550,15 +550,15 @@ type Chat1 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat2 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -571,15 +571,15 @@ type Chat2 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat3 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -592,15 +592,15 @@ type Chat3 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat4 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -613,15 +613,15 @@ type Chat4 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat5 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -634,15 +634,15 @@ type Chat5 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat6 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -655,15 +655,15 @@ type Chat6 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type Chat7 struct {
-	ID               int32                    `json:"id"`
+	ID               pgtype.UUID              `json:"id"`
 	Type             ChatTypeEnum             `json:"type"`
 	Visibility       ChatVisibilityEnum       `json:"visibility"`
 	PostPolicy       ChatPostPolicyEnum       `json:"post_policy"`
@@ -676,16 +676,16 @@ type Chat7 struct {
 	Topic            pgtype.Text              `json:"topic"`
 	Description      pgtype.Text              `json:"description"`
 	Settings         []byte                   `json:"settings"`
-	CreatedBy        int32                    `json:"created_by"`
+	CreatedBy        pgtype.UUID              `json:"created_by"`
 	CreatedAt        pgtype.Timestamptz       `json:"created_at"`
-	ParentID         pgtype.Int4              `json:"parent_id"`
+	ParentID         pgtype.UUID              `json:"parent_id"`
 	ExpiresAt        pgtype.Timestamptz       `json:"expires_at"`
 	ThreadsEnabled   bool                     `json:"threads_enabled"`
 }
 
 type ChatDekHistory struct {
 	ID           pgtype.UUID                      `json:"id"`
-	ChatID       int32                            `json:"chat_id"`
+	ChatID       pgtype.UUID                      `json:"chat_id"`
 	EncryptedDek []byte                           `json:"encrypted_dek"`
 	DekVersion   int16                            `json:"dek_version"`
 	ValidFrom    pgtype.Timestamptz               `json:"valid_from"`
@@ -694,8 +694,8 @@ type ChatDekHistory struct {
 }
 
 type ChatParticipant struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -704,13 +704,11 @@ type ChatParticipant struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -721,8 +719,8 @@ type ChatParticipant struct {
 }
 
 type ChatParticipant0 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -731,13 +729,11 @@ type ChatParticipant0 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -748,8 +744,8 @@ type ChatParticipant0 struct {
 }
 
 type ChatParticipant1 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -758,13 +754,11 @@ type ChatParticipant1 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -775,8 +769,8 @@ type ChatParticipant1 struct {
 }
 
 type ChatParticipant10 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -785,13 +779,11 @@ type ChatParticipant10 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -802,8 +794,8 @@ type ChatParticipant10 struct {
 }
 
 type ChatParticipant11 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -812,13 +804,11 @@ type ChatParticipant11 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -829,8 +819,8 @@ type ChatParticipant11 struct {
 }
 
 type ChatParticipant12 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -839,13 +829,11 @@ type ChatParticipant12 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -856,8 +844,8 @@ type ChatParticipant12 struct {
 }
 
 type ChatParticipant13 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -866,13 +854,11 @@ type ChatParticipant13 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -883,8 +869,8 @@ type ChatParticipant13 struct {
 }
 
 type ChatParticipant14 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -893,13 +879,11 @@ type ChatParticipant14 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -910,8 +894,8 @@ type ChatParticipant14 struct {
 }
 
 type ChatParticipant15 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -920,13 +904,11 @@ type ChatParticipant15 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -937,8 +919,8 @@ type ChatParticipant15 struct {
 }
 
 type ChatParticipant2 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -947,13 +929,11 @@ type ChatParticipant2 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -964,8 +944,8 @@ type ChatParticipant2 struct {
 }
 
 type ChatParticipant3 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -974,13 +954,11 @@ type ChatParticipant3 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -991,8 +969,8 @@ type ChatParticipant3 struct {
 }
 
 type ChatParticipant4 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -1001,13 +979,11 @@ type ChatParticipant4 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -1018,8 +994,8 @@ type ChatParticipant4 struct {
 }
 
 type ChatParticipant5 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -1028,13 +1004,11 @@ type ChatParticipant5 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -1045,8 +1019,8 @@ type ChatParticipant5 struct {
 }
 
 type ChatParticipant6 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -1055,13 +1029,11 @@ type ChatParticipant6 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -1072,8 +1044,8 @@ type ChatParticipant6 struct {
 }
 
 type ChatParticipant7 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -1082,13 +1054,11 @@ type ChatParticipant7 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -1099,8 +1069,8 @@ type ChatParticipant7 struct {
 }
 
 type ChatParticipant8 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -1109,13 +1079,11 @@ type ChatParticipant8 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -1126,8 +1094,8 @@ type ChatParticipant8 struct {
 }
 
 type ChatParticipant9 struct {
-	ChatID              int32                                `json:"chat_id"`
-	UserID              int32                                `json:"user_id"`
+	ChatID              pgtype.UUID                          `json:"chat_id"`
+	UserID              pgtype.UUID                          `json:"user_id"`
 	ChatType            ChatTypeEnum                         `json:"chat_type"`
 	Role                ChatParticipantRoleEnum              `json:"role"`
 	PermissionsBitmask  pgtype.Bits                          `json:"permissions_bitmask"`
@@ -1136,13 +1104,11 @@ type ChatParticipant9 struct {
 	LeftAt              pgtype.Timestamptz                   `json:"left_at"`
 	BanReason           NullChatParticipantBanReasonEnum     `json:"ban_reason"`
 	BanType             NullChatParticipantBanTypeEnum       `json:"ban_type"`
-	BannedBy            pgtype.Int4                          `json:"banned_by"`
+	BannedBy            pgtype.UUID                          `json:"banned_by"`
 	BannedUntil         pgtype.Timestamptz                   `json:"banned_until"`
 	BanReasonNote       pgtype.Text                          `json:"ban_reason_note"`
-	InvitedBy           pgtype.Int4                          `json:"invited_by"`
+	InvitedBy           pgtype.UUID                          `json:"invited_by"`
 	InvitedAt           pgtype.Timestamptz                   `json:"invited_at"`
-	LastReadMessageID   pgtype.UUID                          `json:"last_read_message_id"`
-	LastReadAt          pgtype.Timestamptz                   `json:"last_read_at"`
 	MutedUntil          pgtype.Timestamptz                   `json:"muted_until"`
 	NotificationLevel   ChatParticipantNotificationLevelEnum `json:"notification_level"`
 	CustomNickname      pgtype.Text                          `json:"custom_nickname"`
@@ -1154,7 +1120,7 @@ type ChatParticipant9 struct {
 
 type ChattingDevice struct {
 	ID          int64                  `json:"id"`
-	UserID      int32                  `json:"user_id"`
+	UserID      pgtype.UUID            `json:"user_id"`
 	Name        string                 `json:"name"`
 	Role        ChattingDeviceRoleEnum `json:"role"`
 	Fingerprint []byte                 `json:"fingerprint"`
@@ -1170,7 +1136,7 @@ type ChattingDeviceRolePolicy struct {
 
 type DeviceSignalKey struct {
 	DeviceID              int64              `json:"device_id"`
-	UserID                int32              `json:"user_id"`
+	UserID                pgtype.UUID        `json:"user_id"`
 	IdentityKey           []byte             `json:"identity_key"`
 	SignedPreKeyID        int16              `json:"signed_pre_key_id"`
 	SignedPreKey          []byte             `json:"signed_pre_key"`
@@ -1187,14 +1153,14 @@ type OneTimePreKey struct {
 }
 
 type OneTimePreKeyRateLimit struct {
-	UserID       int32              `json:"user_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
 	Tokens       float64            `json:"tokens"`
 	LastRefillTs pgtype.Timestamptz `json:"last_refill_ts"`
 }
 
 type Session struct {
 	ID               int64              `json:"id"`
-	UserID           int32              `json:"user_id"`
+	UserID           pgtype.UUID        `json:"user_id"`
 	RefreshTokenHash []byte             `json:"refresh_token_hash"`
 	RefreshCount     int16              `json:"refresh_count"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
@@ -1207,7 +1173,7 @@ type Session struct {
 
 type SessionPmanTmpl struct {
 	ID               int64              `json:"id"`
-	UserID           int32              `json:"user_id"`
+	UserID           pgtype.UUID        `json:"user_id"`
 	RefreshTokenHash []byte             `json:"refresh_token_hash"`
 	RefreshCount     int16              `json:"refresh_count"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
@@ -1219,7 +1185,7 @@ type SessionPmanTmpl struct {
 }
 
 type User struct {
-	ID                int32              `json:"id"`
+	ID                pgtype.UUID        `json:"id"`
 	Email             string             `json:"email"`
 	PasswordHash      string             `json:"password_hash"`
 	PasswordAlgo      int16              `json:"password_algo"`

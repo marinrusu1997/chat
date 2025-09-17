@@ -1,41 +1,56 @@
 package main
 
 import (
+	"chat/src/postgres"
+	"chat/src/postgres/gen"
+	"chat/src/scylla"
 	"context"
 	"fmt"
 	"log"
-	"os"
 
-	"github.com/jackc/pgx/v5"
-
-	"chat/src/postgres/gen"
+	"github.com/gocql/gocql"
 )
 
 func main() {
+	session, err := scylla.CreateSession(scylla.SessionConfig{
+		// Hosts:          []string{"127.0.0.1"},
+		Hosts:          []string{"scylla-node1"},
+		ShardAwarePort: 19042,
+		LocalDC:        "DC1",
+		Keyspace:       "chat_db",
+		Authenticator: gocql.PasswordAuthenticator{
+			Username: "chat_rw",
+			Password: "yT3-4d5dQiD6S-yHfThN",
+		},
+		/*AddressTranslator: scylla.NewStaticAddressTranslator(map[string]string{
+			"172.18.0.7:19042":  "127.0.0.1:19041",
+			"172.18.0.10:19042": "127.0.0.1:19042",
+			"172.18.0.9:19042":  "127.0.0.1:19043",
+		}),*/
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+	fmt.Printf("Scylla all good\n")
+
 	// Use a context for cancellation and deadlines.
 	ctx := context.Background()
 
-	// 1. --- DATABASE CONNECTION ---
-	// The connection string should be provided via an environment variable.
-	// Format: postgres://user:password@host:port/dbname
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		log.Fatal("DATABASE_URL environment variable is not set")
-	}
+	dbURL := "postgres://chat_rw:bR4--RqiFyNQGZZiLG4e@pgpool:9999/chat_db"
 
 	// Connect to the database.
-	conn, err := pgx.Connect(ctx, dbURL)
+	pool, err := postgres.CreatePool(ctx, dbURL)
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
+		panic(err)
 	}
 	// Defer the closing of the connection until the main function returns.
-	defer conn.Close(ctx)
-
+	defer pool.Close()
 	fmt.Println("Successfully connected to PostgreSQL!")
 
 	// 2. --- USING THE GENERATED QUERIES ---
 	// Create a new Queries object from the generated package.
-	queries := gen.New(conn)
+	queries := gen.New(pool)
 
 	// 3. --- EXECUTING A QUERY ---
 	// Let's create a new user. We'll use the `CreateUser` function that sqlc generated.
@@ -48,19 +63,22 @@ func main() {
 		PasswordAlgo: 1, // Example algorithm ID
 	}
 
-	fmt.Printf("Creating user '%s'...\n", createUserParams.Name)
+	fmt.Printf("Deleting user '%s'...\n", createUserParams.Email)
+	err = queries.DeleteUserByEmail(ctx, createUserParams.Email)
+	if err != nil {
+		log.Printf("Failed to delete user: %v", err)
+	}
 
-	// Call the generated method.
+	fmt.Printf("Creating user '%s'...\n", createUserParams.Email)
 	newUser, err := queries.CreateUser(ctx, createUserParams)
 	if err != nil {
-		// This will catch errors like a duplicate email address if the unique constraint is violated.
 		log.Fatalf("Failed to create user: %v\n", err)
 	}
 
 	// 4. --- PRINTING THE RESULT ---
 	// The 'newUser' variable is a type-safe struct matching your database schema.
-	fmt.Println("User created successfully!")
-	fmt.Printf("ID:        %d\n", newUser.ID)
+	fmt.Println("User created successfully!!!!")
+	fmt.Printf("ID:        %s\n", newUser.ID.String())
 	fmt.Printf("Name:      %s\n", newUser.Name)
 	fmt.Printf("Email:     %s\n", newUser.Email)
 	fmt.Printf("CreatedAt: %s\n", newUser.CreatedAt.Time.String())

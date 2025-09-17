@@ -1,8 +1,41 @@
 name: chatapp-cluster
 
 networks:
-  chat_cluster_network:
+  postgres_backend_network:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.0.0/16
+  scylla_backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.19.0.0/16
+  monitoring_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+  frontend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  etcd-data:
+  pg-data-1:
+  pg-data-2:
+  pg-data-3:
+  scylla-data-1:
+  scylla-data-2:
+  scylla-data-3:
+  prometheus-data:
+  grafana-data:
 
 services:
   etcd:
@@ -10,9 +43,9 @@ services:
     container_name: etcd
     hostname: etcd
     networks:
-      - chat_cluster_network
+      - postgres_backend_network
     volumes:
-      - ./etcd/data:/var/log/etcd:rw,delegated,Z,rprivate
+      - etcd-data:/var/log/etcd
     command: >
       /usr/local/bin/etcd
       --name etcd
@@ -32,11 +65,8 @@ services:
       retries: 5
       start_period: 15s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
+    mem_limit: 512M
+    cpus: 0.5
 
   # A pool of identical PostgreSQL nodes managed by Patroni.
   pg-node-1:
@@ -46,7 +76,7 @@ services:
     container_name: pg-node-1
     hostname: pg-node-1
     networks:
-      - chat_cluster_network
+      - postgres_backend_network
     volumes:
       # Configuration
       - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
@@ -61,7 +91,7 @@ services:
       - ./postgresql/scripts/pcp_config.sh:/etc/patroni/pcp_config.sh
       - ./postgresql/scripts/interpolate_patroni_config.sh:/etc/patroni/interpolate_patroni_config.sh:ro
       # Data directory
-      - ./postgresql/data/pg_data_1:/var/lib/postgresql/data:rw,delegated,Z,rprivate
+      - pg-data-1:/var/lib/postgresql/data
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./postgresql/secrets/passwords/postgresql/admin.pass:/run/secrets/db_user_admin.pass
       - ./postgresql/secrets/passwords/postgresql/chat_ro.pass:/run/secrets/db_user_chat_ro.pass
@@ -89,11 +119,8 @@ services:
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: '12'
+    mem_limit: 6G
+    cpus: 12
 
   pg-node-2:
     build:
@@ -102,7 +129,7 @@ services:
     container_name: pg-node-2
     hostname: pg-node-2
     networks:
-      - chat_cluster_network
+      - postgres_backend_network
     volumes:
       # Configuration
       - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
@@ -117,7 +144,7 @@ services:
       - ./postgresql/scripts/pcp_config.sh:/etc/patroni/pcp_config.sh
       - ./postgresql/scripts/interpolate_patroni_config.sh:/etc/patroni/interpolate_patroni_config.sh:ro
       # Data directory
-      - ./postgresql/data/pg_data_2:/var/lib/postgresql/data:rw,delegated,Z,rprivate
+      - pg-data-2:/var/lib/postgresql/data
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./postgresql/secrets/passwords/postgresql/admin.pass:/run/secrets/db_user_admin.pass
       - ./postgresql/secrets/passwords/postgresql/chat_ro.pass:/run/secrets/db_user_chat_ro.pass
@@ -145,11 +172,8 @@ services:
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: '12'
+    mem_limit: 6G
+    cpus: 12
 
   pg-node-3:
     build:
@@ -158,7 +182,7 @@ services:
     container_name: pg-node-3
     hostname: pg-node-3
     networks:
-      - chat_cluster_network
+      - postgres_backend_network
     volumes:
       # Configuration
       - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
@@ -173,7 +197,7 @@ services:
       - ./postgresql/scripts/pcp_config.sh:/etc/patroni/pcp_config.sh
       - ./postgresql/scripts/interpolate_patroni_config.sh:/etc/patroni/interpolate_patroni_config.sh:ro
       # Data directory
-      - ./postgresql/data/pg_data_3:/var/lib/postgresql/data:rw,delegated,Z,rprivate
+      - pg-data-3:/var/lib/postgresql/data
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./postgresql/secrets/passwords/postgresql/admin.pass:/run/secrets/db_user_admin.pass
       - ./postgresql/secrets/passwords/postgresql/chat_ro.pass:/run/secrets/db_user_chat_ro.pass
@@ -201,11 +225,8 @@ services:
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: '12'
+    mem_limit: 6G
+    cpus: 12
 
   pgpool:
     build:
@@ -214,7 +235,8 @@ services:
     container_name: pgpool
     hostname: pgpool
     networks:
-      - chat_cluster_network
+      - postgres_backend_network
+      - frontend_network
     ports:
       - "9999:9999"
     volumes:
@@ -249,7 +271,7 @@ services:
         chown -R postgres:postgres /etc/pgpool2/certs && chmod -R 400 /etc/pgpool2/certs && chmod 500 /etc/pgpool2/certs &&
         bash /etc/pgpool2/custom_pre_init.sh &&
         chown postgres:postgres /var/lib/postgresql/.pcppass && chmod 400 /var/lib/postgresql/.pcppass && 
-        rm -f /var/run/pgpool/pgpool.pid && 
+        rm -f /tmp/pgpool.pid /tmp/.s.PGSQL.* && 
         exec gosu postgres /usr/sbin/pgpool -n -f /etc/pgpool2/pgpool.conf
       "
     healthcheck:
@@ -259,11 +281,8 @@ services:
       retries: 5
       start_period: 30s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '4'
+    mem_limit: 1G
+    cpus: 4
 
   pg-exporter:
     build:
@@ -272,7 +291,8 @@ services:
     container_name: pg-exporter
     hostname: pg-exporter
     networks:
-      - chat_cluster_network
+      - postgres_backend_network
+      - monitoring_network
     volumes:
       - ./pg-exporter/postgres_exporter.yml:/tmp/postgres_exporter.yml.template:ro
       - ./pg-exporter/entrypoint.sh:/tmp/entrypoint.sh:ro
@@ -288,21 +308,219 @@ services:
     depends_on:
       pgpool:
         condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 200MB
-          cpus: '1'
+    mem_limit: 200MB
+    cpus: 1
+
+  scylla-node1:
+    image: scylladb/scylla:2025.3
+    container_name: scylla-node1
+    hostname: scylla-node1
+    networks:
+      scylla_backend_network:
+        aliases:
+          - scylla-node1-internal # Give this node a specific name on the backend network
+      frontend_network: # <-- Now you can safely add the frontend network
+    ports:
+      - "19041:19042"
+    volumes:
+      - ./scylla/config/rack1.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - scylla-data-1:/var/lib/scylla
+    security_opt:
+      - "seccomp:unconfined"
+    command: >
+      --seeds=scylla-node1-internal
+      --listen-address=scylla-node1-internal
+      --rpc-address=scylla-node1
+      --native-shard-aware-transport-port=19042
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+    healthcheck:
+      test: [ "CMD-SHELL", "nodetool status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+
+  scylla-node2:
+    image: scylladb/scylla:2025.3
+    container_name: scylla-node2
+    hostname: scylla-node2
+    networks:
+      scylla_backend_network:
+        aliases:
+          - scylla-node2-internal
+      frontend_network:
+    ports:
+      - "19042:19042"
+    volumes:
+      - ./scylla/config/rack2.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - scylla-data-2:/var/lib/scylla
+    security_opt:
+      - "seccomp:unconfined"
+    command: >
+      --seeds=scylla-node1-internal
+      --listen-address=scylla-node2-internal
+      --rpc-address=scylla-node2
+      --native-shard-aware-transport-port=19042
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+    healthcheck:
+      test: [ "CMD-SHELL", "nodetool status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    depends_on:
+      scylla-node1:
+        condition: service_healthy
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+
+  scylla-node3:
+    image: scylladb/scylla:2025.3
+    container_name: scylla-node3
+    hostname: scylla-node3
+    networks:
+      scylla_backend_network:
+        aliases:
+          - scylla-node3-internal
+      frontend_network:
+    ports:
+      - "19043:19042"
+    volumes:
+      - ./scylla/config/rack3.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - scylla-data-3:/var/lib/scylla
+    security_opt:
+      - "seccomp:unconfined"
+    command: >
+      --seeds=scylla-node1-internal
+      --listen-address=scylla-node3-internal
+      --rpc-address=scylla-node3
+      --native-shard-aware-transport-port=19042
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+    healthcheck:
+      test: [ "CMD-SHELL", "nodetool status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    depends_on:
+      scylla-node1:
+        condition: service_healthy
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+
+  scylla-maintainer:
+    image: scylladb/scylla:2025.3
+    container_name: scylla-maintainer
+    networks:
+      - frontend_network
+    volumes:
+      - ./scylla/scripts/init.cql:/tmp/init.cql:ro
+      - ./scylla/scripts/init.sh:/tmp/init.sh:ro
+    env_file:
+      - ./scylla/secrets/.env.secrets
+    entrypoint: sh /tmp/init.sh
+    restart: no
+    depends_on:
+      scylla-node1:
+        condition: service_healthy
+      scylla-node2:
+        condition: service_healthy
+      scylla-node3:
+        condition: service_healthy
+    mem_limit: 300M
+    cpus: 1
 
   prometheus:
     image: 'prom/prometheus:v3.5.0'
     container_name: prometheus
     hostname: prometheus
     networks:
-      - chat_cluster_network
+      - monitoring_network
+      - frontend_network
+    user: "0:0" # Run as root to ensure access to mounted config files
     volumes:
+      - prometheus-data:/var/lib/prometheus/data
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/data:/var/lib/prometheus/data:rw,delegated,Z,rprivate
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/var/lib/prometheus/data'
@@ -311,6 +529,12 @@ services:
     depends_on:
       pg-exporter:
         condition: service_healthy
+      scylla-node1:
+        condition: service_healthy
+      scylla-node2:
+        condition: service_healthy
+      scylla-node3:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
       interval: 30s
@@ -318,18 +542,15 @@ services:
       retries: 5
       start_period: 20s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 2GB
-          cpus: '4'
+    mem_limit: 2GB
+    cpus: 4
 
   grafana:
     image: 'grafana/grafana:12.3.0-17750354453'
     container_name: grafana
     hostname: grafana
     networks:
-      - chat_cluster_network
+      - monitoring_network
     ports:
       - "3001:3000"
     environment:
@@ -338,7 +559,7 @@ services:
     volumes:
       - ./grafana/provisioning/:/etc/grafana/provisioning/:ro
       - ./grafana/dashboards/:/etc/grafana/dashboards/:ro
-      - ./grafana/data:/var/lib/grafana:rw,delegated,Z,rprivate
+      - grafana-data:/var/lib/grafana
     depends_on:
       prometheus:
         condition: service_healthy
@@ -349,8 +570,23 @@ services:
       retries: 5
       start_period: 30s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 1GB
-          cpus: '2'
+    mem_limit: 1GB
+    cpus: 2
+
+  chat-app:
+    build:
+      context: ../../app
+      dockerfile: Dockerfile.dev
+    container_name: chat-app
+    hostname: chat-app
+    networks:
+      - frontend_network
+    volumes:
+      - ../../app:/app
+    environment:
+      - ENV=development
+    depends_on:
+      grafana:
+        condition: service_healthy
+    mem_limit: 2GB
+    cpus: 4

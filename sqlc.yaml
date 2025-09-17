@@ -9,7 +9,7 @@ sql:
     gen:
       go:
         package: "gen"
-        out: "./src/postgres/gen"
+        out: "./app/src/postgres/gen"
         sql_package: "pgx/v5"
         emit_interface: true
         emit_json_tags: true

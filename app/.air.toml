@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "dist"
+
+[build]
+  cmd = "go build -o ./dist/main ./src"
+  bin = "./dist/main"
+  full_bin = "APP_BINARY=./dist/main ./dist/main"
+  include_ext = ["go"]
+  include_dir = ["src"]
+  exclude_dir = ["dist"]
+  log = "air_errors.log"
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

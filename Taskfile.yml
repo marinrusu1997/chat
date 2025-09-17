@@ -1,41 +1,41 @@
 version: '3'
 
 vars:
-  # --- sqlc Tool Configuration ---
-  SQLC_VERSION: 1.30.0
-  SQLC_OS: windows
-  SQLC_ARCH: amd64
-  SQLC_ZIP: sqlc_{{.SQLC_VERSION}}_{{.SQLC_OS}}_{{.SQLC_ARCH}}.zip
-  SQLC_URL: https://github.com/sqlc-dev/sqlc/releases/download/v{{.SQLC_VERSION}}/{{.SQLC_ZIP}}
-
   # --- Go and Project Paths ---
-  GOBIN: '{{.USERPROFILE}}\go\bin'
-  SQL_SCHEMA_FILE: ./deployment/docker/postgresql/scripts/init.sql
-  SQL_QUERIES_FILE: ./deployment/docker/postgresql/scripts/queries.sql
-  GEN_CODE_DIR: ./src/postgres/gen
+  SRC_DIR: './app/src'
+  GOBIN_DIR: '{{.USERPROFILE}}\go\bin'
+
+  # --- sqlc Tool Configuration ---
+  SQLC_VERSION: '1.30.0'
+  SQLC_OS: 'windows'
+  SQLC_ARCH: 'amd64'
+  SQLC_ZIP: 'sqlc_{{.SQLC_VERSION}}_{{.SQLC_OS}}_{{.SQLC_ARCH}}.zip'
+  SQLC_URL: 'https://github.com/sqlc-dev/sqlc/releases/download/v{{.SQLC_VERSION}}/{{.SQLC_ZIP}}'
+  SQLC_SCHEMA_FILE: './deployment/docker/postgresql/scripts/init.sql'
+  SQLC_QUERIES_FILE: './deployment/docker/postgresql/scripts/queries.sql'
+  SQLC_GEN_CODE_DIR: '{{.SRC_DIR}}/postgres/gen'
+
+  # --- schemagen Tool Configuration ---
+  SCHEMAGEN_CLUSTER: '127.0.0.1:19041'
+  SCHEMAGEN_USER: 'chat_rw'
+  SCHEMAGEN_PASSWORD: 'yT3-4d5dQiD6S-yHfThN'
+  SCHEMAGEN_KEYSPACE: 'chat_db'
+  SCHEMAGEN_OUTPUT: '{{.SRC_DIR}}/scylla/gen'
+  SCHEMAGEN_PKGNAME: 'gen'
 
 tasks:
-  default:
-    cmds:
-      - task: db:generate
-
   tools:sqlc:
     desc: 'Downloads and installs the sqlc binary if not already present.'
     vars:
-      SQLC_EXE: '{{.GOBIN}}\sqlc.exe'
+      SQLC_EXE: '{{.GOBIN_DIR}}\sqlc.exe'
     status:
       - 'command -v sqlc'
     cmds:
       - echo "Installing sqlc v{{.SQLC_VERSION}}..."
-      # Ensure the target directory exists
-      - mkdir -p {{.GOBIN}}
-      # Download the release zip filez
+      - mkdir -p {{.GOBIN_DIR}}
       - curl -L -o {{.SQLC_ZIP}} {{.SQLC_URL}}
-      # Unzip the archive
       - unzip {{.SQLC_ZIP}} sqlc.exe
-      # Move the executable to the final destination, overwriting if necessary
       - mv -f sqlc.exe "{{.SQLC_EXE}}"
-      # Clean up the downloaded zip file
       - rm -rf {{.SQLC_ZIP}}
       - 'echo "✅ sqlc installed successfully."'
 
@@ -47,39 +47,74 @@ tasks:
       - go install github.com/cespare/reflex@latest
     silent: true
 
-  db:generate:
+  sqlc:generate:
     desc: 'Generate Go code from SQL schema and queries using sqlc.'
-    deps: [tools:sqlc]
+    deps:
+      - tools:sqlc
     cmds:
       - sqlc -f sqlc.yaml generate
     sources:
-      - '{{.SQL_SCHEMA_FILE}}'
-      - '{{.SQL_QUERIES_FILE}}'
-      - sqlc.yaml
+      - '{{.SQLC_SCHEMA_FILE}}'
+      - '{{.SQLC_QUERIES_FILE}}'
+      - 'sqlc.yaml'
     generates:
-      - '{{.GEN_CODE_DIR}}/copyfrom.go'
-      - '{{.GEN_CODE_DIR}}/db.go'
-      - '{{.GEN_CODE_DIR}}/models.go'
-      - '{{.GEN_CODE_DIR}}/querier.go'
-      - '{{.GEN_CODE_DIR}}/queries.sql.go'
+      - '{{.SQLC_GEN_CODE_DIR}}/copyfrom.go'
+      - '{{.SQLC_GEN_CODE_DIR}}/db.go'
+      - '{{.SQLC_GEN_CODE_DIR}}/models.go'
+      - '{{.SQLC_GEN_CODE_DIR}}/querier.go'
+      - '{{.SQLC_GEN_CODE_DIR}}/queries.sql.go'
     method: checksum
 
-  db:clean:
+  sqlc:clean:
     desc: 'Remove generated database Go files.'
     cmds:
-      - rimraf {{.GEN_CODE_DIR}}
+      - rimraf {{.SQLC_GEN_CODE_DIR}}
 
-  db:watch:
+  sqlc:watch:
     desc: 'Watch SQL files and regenerate Go code on changes.'
-    deps: [tools:sqlc,tools:reflex]
+    deps:
+      - tools:sqlc
+      - tools:reflex
     cmds:
-      # WATCH: The reflex command can still watch for any .sql change in the directory,
-      # or you could make it more complex to watch specific files. Watching the
-      # directory is often still practical here.
       - |
-        reflex --start-service -r '\.sql$' --watch-dir ./deployment/docker/postgresql/scripts -- sh -c 'task db:generate && echo "✅ sqlc generated successfully at $(date -u)"'
+        reflex --start-service -r '\.sql$' --watch-dir ./deployment/docker/postgresql/scripts -- sh -c 'task sqlc:generate && echo "✅ sqlc generated successfully at $(date -u)"'
 
-  dpl:clean:
-    desc: 'Clean deployment generated files.'
+  tools:schemagen:
+    desc: 'Downloads and installs the schemagen binary if not already present.'
+    status:
+      - 'command -v schemagen'
     cmds:
-      - Get-ChildItem -Path ./deployment/docker -Recurse -Directory -Filter "data" | Where-Object { Test-Path (Join-Path $_.FullName ".gitkeep") -PathType Leaf } | ForEach-Object { Get-ChildItem -Path $_.FullName -Force | Where-Object { $_.Name -ne ".gitkeep" } | Remove-Item -Recurse -Force }
+      - echo "⏳Installing schemagen..."
+      - git clone git@github.com:scylladb/gocqlx.git
+      - cd gocqlx/cmd/schemagen/
+      - go install .
+      - cd ../../..
+      - rimraf gocqlx
+      - 'echo "✅ schemagen installed successfully."'
+
+  schemagen:gen:
+    desc: 'Generate Go code from CQL schema'
+    deps:
+      - tools:schemagen
+    cmds:
+      - |
+        schemagen \
+          -cluster="{{.SCHEMAGEN_CLUSTER}}" \
+          -user="{{.SCHEMAGEN_USER}}" \
+          -password="{{.SCHEMAGEN_PASSWORD}}" \
+          -keyspace="{{.SCHEMAGEN_KEYSPACE}}" \
+          -output="{{.SCHEMAGEN_OUTPUT}}" \
+          -pkgname="{{.SCHEMAGEN_PKGNAME}}"
+    generates:
+      - '{{.SCHEMAGEN_OUTPUT}}/gen.go'
+    method: checksum
+
+  schemagen:clean:
+    desc: 'Remove generated ScyllaDB Go files.'
+    cmds:
+      - rimraf '{{.SCHEMAGEN_OUTPUT}}/gen.go'
+
+  volumes:wipe:
+    desc: 'Removes all named volumes associated with this project'
+    cmds:
+      - docker volume ls | grep chatapp-cluster_ | awk '{print $2}' | xargs docker volume rm
