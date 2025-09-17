@@ -4,6 +4,11 @@ networks:
   chat_cluster_network:
     driver: bridge
 
+volumes:
+  scylla-data-1:
+  scylla-data-2:
+  scylla-data-3:
+
 services:
   etcd:
     image: gcr.io/etcd-development/etcd:v3.6.4
@@ -32,11 +37,8 @@ services:
       retries: 5
       start_period: 15s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
+    mem_limit: 512M
+    cpus: 0.5
 
   # A pool of identical PostgreSQL nodes managed by Patroni.
   pg-node-1:
@@ -89,11 +91,8 @@ services:
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: '12'
+    mem_limit: 6G
+    cpus: 12
 
   pg-node-2:
     build:
@@ -145,11 +144,8 @@ services:
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: '12'
+    mem_limit: 6G
+    cpus: 12
 
   pg-node-3:
     build:
@@ -201,11 +197,8 @@ services:
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: '12'
+    mem_limit: 6G
+    cpus: 12
 
   pgpool:
     build:
@@ -259,11 +252,8 @@ services:
       retries: 5
       start_period: 30s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '4'
+    mem_limit: 1G
+    cpus: 4
 
   pg-exporter:
     build:
@@ -288,11 +278,181 @@ services:
     depends_on:
       pgpool:
         condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 200MB
-          cpus: '1'
+    mem_limit: 200MB
+    cpus: 1
+
+  scylla-node1:
+    image: scylladb/scylla:2025.3
+    container_name: scylla-node1
+    hostname: scylla-node1
+    networks:
+      - chat_cluster_network
+    ports:
+      - "9042:9042"
+    volumes:
+      - ./scylla/config/rack1.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - scylla-data-1:/var/lib/scylla
+    security_opt:
+      - "seccomp:unconfined"
+    command: >
+      --seeds=scylla-node1 
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+    healthcheck:
+      test: [ "CMD-SHELL", "nodetool status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+
+  scylla-node2:
+    image: scylladb/scylla:2025.3
+    container_name: scylla-node2
+    hostname: scylla-node2
+    networks:
+      - chat_cluster_network
+    volumes:
+      - ./scylla/config/rack2.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - scylla-data-2:/var/lib/scylla
+    security_opt:
+      - "seccomp:unconfined"
+    command: >
+      --seeds=scylla-node1 
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+    healthcheck:
+      test: [ "CMD-SHELL", "nodetool status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    depends_on:
+      scylla-node1:
+        condition: service_healthy
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+
+  scylla-node3:
+    image: scylladb/scylla:2025.3
+    container_name: scylla-node3
+    hostname: scylla-node3
+    networks:
+      - chat_cluster_network
+    volumes:
+      - ./scylla/config/rack3.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - scylla-data-3:/var/lib/scylla
+    security_opt:
+      - "seccomp:unconfined"
+    command: >
+      --seeds=scylla-node1 
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+    healthcheck:
+      test: [ "CMD-SHELL", "nodetool status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    depends_on:
+      scylla-node1:
+        condition: service_healthy
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+
+  scylla-initializer:
+    image: cassandra:5.0.5
+    container_name: scylla-initializer
+    networks:
+      - chat_cluster_network
+    volumes:
+      - ./scylla/scripts/init.cql:/tmp/init.cql:ro
+      - ./scylla/scripts/init.sh:/tmp/init.sh:ro
+    env_file:
+      - ./scylla/secrets/.env.secrets
+    command: sh /tmp/init.sh
+    restart: no
+    depends_on:
+      scylla-node3:
+        condition: service_healthy
+    mem_limit: 250M
+    cpus: 1
 
   prometheus:
     image: 'prom/prometheus:v3.5.0'
@@ -311,6 +471,12 @@ services:
     depends_on:
       pg-exporter:
         condition: service_healthy
+      scylla-node1:
+        condition: service_healthy
+      scylla-node2:
+        condition: service_healthy
+      scylla-node3:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
       interval: 30s
@@ -318,11 +484,8 @@ services:
       retries: 5
       start_period: 20s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 2GB
-          cpus: '4'
+    mem_limit: 2GB
+    cpus: 4
 
   grafana:
     image: 'grafana/grafana:12.3.0-17750354453'
@@ -349,8 +512,5 @@ services:
       retries: 5
       start_period: 30s
     restart: on-failure:5
-    deploy:
-      resources:
-        limits:
-          memory: 1GB
-          cpus: '2'
+    mem_limit: 1GB
+    cpus: 2

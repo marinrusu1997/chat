@@ -23,3 +23,7 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: 'pg-exporter:9187'
+
+  - job_name: 'scylla'
+    static_configs:
+      - targets: ['scylla-node1:9180', 'scylla-node2:9180', 'scylla-node3:9180']

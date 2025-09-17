@@ -55,7 +55,7 @@ $$ LANGUAGE plpgsql;
 -- User table
 CREATE TABLE IF NOT EXISTS "user"
 (
-    id                      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- credentials
     email                   VARCHAR(255) NOT NULL UNIQUE CHECK (LENGTH(email) >= 5 AND email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
     password_hash           VARCHAR(255) NOT NULL CHECK (LENGTH(password_hash) >= 50),
@@ -87,7 +87,7 @@ CREATE TYPE chatting_device_role_enum AS ENUM ('primary', 'secondary', 'read_onl
 CREATE TABLE IF NOT EXISTS chatting_device
 (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id             INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    user_id             UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     name                VARCHAR(50) NOT NULL CHECK (LENGTH(name) >= 2),
     role                chatting_device_role_enum NOT NULL,
     fingerprint         BYTEA NOT NULL CHECK (octet_length(fingerprint) = 32),
@@ -117,7 +117,7 @@ ON CONFLICT (role) DO UPDATE SET expiry_interval = EXCLUDED.expiry_interval;
 CREATE TABLE IF NOT EXISTS device_signal_keys
 (
     device_id                   BIGINT PRIMARY KEY REFERENCES chatting_device(id) ON DELETE CASCADE,
-    user_id                     INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    user_id                     UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     identity_key                BYTEA NOT NULL UNIQUE CHECK (octet_length(identity_key) = 32),
     signed_pre_key_id           SMALLINT NOT NULL CHECK (signed_pre_key_id > 0),
     signed_pre_key              BYTEA NOT NULL UNIQUE CHECK (octet_length(signed_pre_key) = 32),
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS one_time_pre_key
 
 CREATE TABLE IF NOT EXISTS one_time_pre_key_rate_limit
 (
-    user_id         INTEGER PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+    user_id         UUID PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
     tokens          DOUBLE PRECISION NOT NULL CHECK (tokens >= 0 AND tokens <= 50.0) DEFAULT 50.0,
     last_refill_ts  TIMESTAMPTZ NOT NULL CHECK (last_refill_ts <= NOW() + INTERVAL '5 seconds') DEFAULT NOW()
 );
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS one_time_pre_key_rate_limit
 CREATE TABLE IF NOT EXISTS session
 (
     id                  BIGSERIAL,
-    user_id             INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    user_id             UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     refresh_token_hash  BYTEA NOT NULL CHECK (OCTET_LENGTH(refresh_token_hash) = 32),
     refresh_count       SMALLINT NOT NULL CHECK (refresh_count <= 5000) DEFAULT 0,
     created_at          TIMESTAMPTZ NOT NULL CHECK (created_at <= NOW() + INTERVAL '5 seconds') DEFAULT NOW(),
@@ -183,7 +183,7 @@ CREATE TYPE chat_encryption_enum AS ENUM ('at_rest', 'end_to_end');
 
 CREATE TABLE IF NOT EXISTS chat
 (
-    id                  INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- enums
     type                chat_type_enum NOT NULL,
     visibility          chat_visibility_enum NOT NULL,
@@ -204,12 +204,12 @@ CREATE TABLE IF NOT EXISTS chat
     description         VARCHAR(500) CHECK (description IS NULL OR LENGTH(description) >= 2),
     settings            JSONB NOT NULL DEFAULT '{}',
     -- authorship / lineage
-    created_by          INTEGER NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT,
+    created_by          UUID NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT,
     created_at          TIMESTAMPTZ NOT NULL CHECK (created_at <= NOW() + INTERVAL '5 seconds') DEFAULT NOW(),
-    parent_id           INTEGER REFERENCES chat(id) ON DELETE CASCADE,
+    parent_id           UUID REFERENCES chat(id) ON DELETE CASCADE,
     expires_at          TIMESTAMPTZ CHECK (expires_at IS NULL OR (expires_at > NOW())),
     -- group thread toggle (global per chat)
-    threads_enabled     BOOLEAN NOT NULL DEFAULT FALSE, -- @fixme needs to also be set per message
+    threads_enabled     BOOLEAN NOT NULL DEFAULT FALSE,
 
     CHECK (type NOT IN ('direct', 'self', 'thread') OR ((name, tags, topic, description) IS NOT DISTINCT FROM (NULL, NULL, NULL, NULL))),
     CHECK (type IS DISTINCT FROM 'group' OR (name IS NOT NULL AND tags IS NOT NULL AND topic IS NOT NULL AND description IS NOT NULL)),
@@ -234,7 +234,7 @@ CREATE TABLE IF NOT EXISTS chat
 -- Get the current DEK with: SELECT * FROM chat_dek_history WHERE chat_id = $1 AND now() <@ valid_range;
 CREATE TABLE chat_dek_history (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  chat_id        INTEGER NOT NULL REFERENCES chat(id) ON DELETE CASCADE,
+  chat_id        UUID NOT NULL REFERENCES chat(id) ON DELETE CASCADE,
   encrypted_dek  BYTEA NOT NULL UNIQUE CHECK (octet_length(encrypted_dek) BETWEEN 32 AND 1024),
   dek_version    SMALLINT NOT NULL CHECK (dek_version >= 0),
   valid_from     TIMESTAMPTZ NOT NULL CHECK (valid_from <= NOW() + INTERVAL '5 days'),
@@ -253,8 +253,8 @@ CREATE TYPE chat_participant_notification_level_enum AS ENUM ('all', 'mentions_o
 
 CREATE TABLE IF NOT EXISTS chat_participant (
     -- identifiers & relations
-    chat_id                 INTEGER NOT NULL REFERENCES chat(id) ON DELETE CASCADE,
-    user_id                 INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    chat_id                 UUID NOT NULL REFERENCES chat(id) ON DELETE CASCADE,
+    user_id                 UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     chat_type               chat_type_enum NOT NULL,
     -- membership & roles
     role                    chat_participant_role_enum NOT NULL,
@@ -266,15 +266,12 @@ CREATE TABLE IF NOT EXISTS chat_participant (
     -- moderation
     ban_reason              chat_participant_ban_reason_enum,
     ban_type                chat_participant_ban_type_enum,
-    banned_by               INTEGER REFERENCES "user"(id) ON DELETE RESTRICT,
+    banned_by               UUID REFERENCES "user"(id) ON DELETE RESTRICT,
     banned_until            TIMESTAMPTZ CHECK (banned_until IS NULL OR (banned_until > NOW())),
     ban_reason_note         VARCHAR(200) CHECK (LENGTH(ban_reason_note) >= 1),
     -- invitations
-    invited_by              INTEGER REFERENCES "user"(id) ON DELETE RESTRICT,
+    invited_by              UUID REFERENCES "user"(id) ON DELETE RESTRICT,
     invited_at              TIMESTAMPTZ CHECK (invited_at IS NULL OR (invited_at < joined_at)),
-    -- read tracking & activity
-    last_read_message_id    UUID,
-    last_read_at            TIMESTAMPTZ CHECK (last_read_at IS NULL OR (last_read_at > joined_at AND last_read_at <= NOW() + INTERVAL '5 seconds')),
     -- notifications & preferences
     muted_until             TIMESTAMPTZ CHECK (muted_until IS NULL OR (muted_until > NOW() + INTERVAL '5 seconds')),
     notification_level      chat_participant_notification_level_enum NOT NULL DEFAULT 'all',
@@ -299,7 +296,7 @@ CREATE TABLE IF NOT EXISTS chat_participant (
     CHECK (role IS DISTINCT FROM 'bot' OR (
             color_theme             IS NULL AND
             last_pinned_message_id  IS NULL
-          )
+        )
     ),
     CHECK (role IS DISTINCT FROM 'guest' OR (
             rejoined_at IS NULL AND
@@ -347,12 +344,7 @@ CREATE TABLE IF NOT EXISTS chat_participant (
         (invited_at IS NOT NULL AND invited_by IS NOT NULL)
     ),
 
-    CHECK (banned_by != user_id AND invited_by != user_id),
-
-    CHECK (
-        (last_read_message_id IS NULL AND last_read_at IS NULL) OR
-        (last_read_message_id IS NOT NULL AND last_read_at IS NOT NULL)
-    )
+    CHECK (banned_by != user_id AND invited_by != user_id)
 ) PARTITION BY HASH (chat_id);
 
 -- Indexes
@@ -379,7 +371,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_participant_chat_id             ON chat_part
 CREATE INDEX IF NOT EXISTS idx_chat_participant_role                ON chat_participant(chat_id, role) INCLUDE (user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_participant_left_at             ON chat_participant(chat_id, left_at) INCLUDE (user_id) WHERE left_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_chat_participant_ban                 ON chat_participant(chat_id, ban_reason) INCLUDE (user_id) WHERE ban_reason IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_chat_participant_last_read           ON chat_participant(chat_id, muted_until) INCLUDE (user_id) WHERE muted_until IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_chat_participant_muted_util          ON chat_participant(chat_id, muted_until) INCLUDE (user_id) WHERE muted_until IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_chat_participant_notification_level  ON chat_participant(chat_id, notification_level) INCLUDE (user_id) WHERE notification_level <> 'none';
 
 -- Triggers
@@ -646,7 +638,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION check_device_is_active(
-    p_device_id INTEGER
+    p_device_id BIGINT
 )
     RETURNS void
     LANGUAGE plpgsql
@@ -666,7 +658,7 @@ BEGIN
     END;
 END;
 $$;
-COMMENT ON FUNCTION check_device_is_active(INTEGER) IS $$
+COMMENT ON FUNCTION check_device_is_active(BIGINT) IS $$
 Checks if a given device ID exists and has not expired.
 Raises an EXCEPTION if the device is not found or is expired.
 Returns void on success.
@@ -863,9 +855,9 @@ CREATE TYPE device_base_bundle AS (
     signed_pre_key_signature    BYTEA
 );
 CREATE OR REPLACE FUNCTION get_user_signal_pre_key_bundle(
-    p_sender_id     INTEGER,    -- The ID of the user REQUESTING the bundle
-    p_receiver_id   INTEGER,    -- The ID of the user WHOSE bundle is being requested
-    p_chat_id       INTEGER     -- The ID of the chat where the sender wants to send a message
+    p_sender_id     UUID,    -- The ID of the user REQUESTING the bundle
+    p_receiver_id   UUID,    -- The ID of the user WHOSE bundle is being requested
+    p_chat_id       UUID     -- The ID of the chat where the sender wants to send a message
 )
     RETURNS SETOF device_pre_key_bundle
     LANGUAGE plpgsql
@@ -985,7 +977,7 @@ BEGIN
     RETURN;
 END;
 $$;
-COMMENT ON FUNCTION get_user_signal_pre_key_bundle(INTEGER, INTEGER, INTEGER) IS $$
+COMMENT ON FUNCTION get_user_signal_pre_key_bundle(UUID, UUID, UUID) IS $$
 Atomically fetches all necessary pre_key bundles for a receiver's devices to initiate a secure session.
 
 This function serves as the secure gateway for establishing an end-to-end encrypted session for 'direct' or 'self' chats.
@@ -1002,9 +994,9 @@ The execution flow is as follows:
 This function ENFORCES the use of a one-time pre_key and does not support the protocol's standard fallback mechanism.
 
 @args
-    p_sender_id (INTEGER): The ID of the user REQUESTING the bundles.
-    p_chat_id (INTEGER): The ID of the 'direct' or 'self' chat that provides the context for the request.
-    p_receiver_id (INTEGER): The ID of the user WHOSE device bundles are being requested.
+    p_sender_id (UUID): The ID of the user REQUESTING the bundles.
+    p_chat_id (UUID): The ID of the 'direct' or 'self' chat that provides the context for the request.
+    p_receiver_id (UUID): The ID of the user WHOSE device bundles are being requested.
 
 @returns
     SETOF device_pre_key_bundle: A table-like result set where each row is a complete pre_key bundle for one of the receiver's devices.
@@ -1024,7 +1016,7 @@ $$;
 CREATE OR REPLACE FUNCTION enforce_max_sessions()
     RETURNS TRIGGER AS $$
 DECLARE
-    session_count INT;
+    session_count SMALLINT;
 BEGIN
     -- Lock all sessions for this user across partitions
     PERFORM 1 FROM session WHERE user_id = NEW.user_id FOR UPDATE;
@@ -1474,7 +1466,7 @@ CREATE TYPE chat_where_user_joined AS (
     visibility      chat_visibility_enum,
     status          chat_status_enum,
     created_at      TIMESTAMPTZ,
-    created_by      INTEGER
+    created_by      UUID
 );
 
 CREATE OR REPLACE FUNCTION enforce_chat_participant_rules_insert()
@@ -1482,8 +1474,8 @@ CREATE OR REPLACE FUNCTION enforce_chat_participant_rules_insert()
 DECLARE
     inviter             chat_inviter;
     chat_to_join        chat_where_user_joined;
-    existing_owner_id   INTEGER;
-    owner_count         INTEGER;
+    existing_owner_id   UUID;
+    owner_count         BIGINT;
 BEGIN
     IF NEW.role NOT IN ('owner', 'member', 'guest', 'bot') THEN
         RAISE EXCEPTION 'User % cannot join chat % with role %', NEW.user_id, NEW.chat_id, NEW.role;
@@ -1495,10 +1487,6 @@ BEGIN
        NEW.banned_until IS NOT NULL OR
        NEW.ban_reason_note IS NOT NULL THEN
         RAISE EXCEPTION 'User % cannot join chat % in a banned state', NEW.user_id, NEW.chat_id;
-    END IF;
-
-    IF NEW.last_read_message_id IS NOT NULL OR NEW.last_read_at IS NOT NULL THEN
-        RAISE EXCEPTION 'User % cannot join chat % while at the same time have read messages from it', NEW.user_id, NEW.chat_id;
     END IF;
 
     IF NEW.left_at IS NOT NULL OR NEW.rejoined_at IS NOT NULL THEN
@@ -1772,27 +1760,10 @@ CREATE TRIGGER chat_participant_left_rejoined_check
     WHEN (NEW.left_at IS DISTINCT FROM OLD.left_at AND NEW.rejoined_at IS DISTINCT FROM OLD.rejoined_at)
 EXECUTE FUNCTION enforce_participant_left_rejoined();
 
-CREATE OR REPLACE FUNCTION chat_participant_sync_last_read()
-    RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.last_read_message_id IS NULL THEN
-        NEW.last_read_at := NULL;
-    ELSIF NEW.last_read_at IS NULL THEN
-        NEW.last_read_at := NOW();
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-CREATE TRIGGER chat_participant_last_read_sync
-    BEFORE UPDATE OF last_read_message_id ON chat_participant
-    FOR EACH ROW
-EXECUTE FUNCTION chat_participant_sync_last_read();
-
 CREATE OR REPLACE FUNCTION validations_before_chat_participant_deletion()
     RETURNS TRIGGER AS $$
 DECLARE
-    owner_id INTEGER;
+    owner_id UUID;
 BEGIN
     -- Skip if triggered by cascade
     IF pg_trigger_depth() > 1 THEN

@@ -82,4 +82,4 @@ tasks:
   dpl:clean:
     desc: 'Clean deployment generated files.'
     cmds:
-      - Get-ChildItem -Path ./deployment/docker -Recurse -Directory -Filter "data" | Where-Object { Test-Path (Join-Path $_.FullName ".gitkeep") -PathType Leaf } | ForEach-Object { Get-ChildItem -Path $_.FullName -Force | Where-Object { $_.Name -ne ".gitkeep" } | Remove-Item -Recurse -Force }
+      - 'powershell.exe Get-ChildItem -Path ./deployment/docker -Recurse -Directory -Filter "data" | Where-Object { Test-Path (Join-Path $_.FullName ".gitkeep") -PathType Leaf } | ForEach-Object { Get-ChildItem -Path $_.FullName -Force | Where-Object { $_.Name -ne ".gitkeep" } | Remove-Item -Recurse -Force }'
