@@ -1,17 +1,40 @@
 package main
 
 import (
+	"chat/src/postgres/gen"
+	"chat/src/scylla"
 	"context"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/gocql/gocql"
 	"github.com/jackc/pgx/v5"
-
-	"chat/src/postgres/gen"
 )
 
 func main() {
+	session, err := scylla.CreateSession(scylla.SessionConfig{
+		Hosts:          []string{"127.0.0.1"},
+		ShardAwarePort: 19042,
+		LocalDC:        "DC1",
+		Keyspace:       "chat_db",
+		Authenticator: gocql.PasswordAuthenticator{
+			Username: "chat_rw",
+			Password: "yT3-4d5dQiD6S-yHfThN",
+		},
+		AddressTranslator: scylla.NewStaticAddressTranslator(map[string]string{
+			"172.18.0.7:19042":  "127.0.0.1:19041",
+			"172.18.0.10:19042": "127.0.0.1:19042",
+			"172.18.0.9:19042":  "127.0.0.1:19043",
+		}),
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
+	fmt.Printf("Scylla all good\n")
+
 	// Use a context for cancellation and deadlines.
 	ctx := context.Background()
 
