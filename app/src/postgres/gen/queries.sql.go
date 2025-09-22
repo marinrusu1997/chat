@@ -63,6 +63,40 @@ func (q *Queries) DeleteUserByEmail(ctx context.Context, email string) error {
 	return err
 }
 
+const getAllUsers = `-- name: GetAllUsers :many
+SELECT id, email, password_hash, password_algo, password_updated_at, name, last_login_at, last_active_at, created_at FROM "user"
+`
+
+func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, getAllUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.PasswordAlgo,
+			&i.PasswordUpdatedAt,
+			&i.Name,
+			&i.LastLoginAt,
+			&i.LastActiveAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, email, password_hash, password_algo, password_updated_at, name, last_login_at, last_active_at, created_at FROM "user" WHERE email = $1
 `

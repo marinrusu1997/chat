@@ -25,6 +25,12 @@ networks:
       driver: default
       config:
         - subnet: 172.21.0.0/16
+  redis_backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.22.0.0/16
 
 volumes:
   etcd-data:
@@ -34,6 +40,12 @@ volumes:
   scylla-data-1:
   scylla-data-2:
   scylla-data-3:
+  redis-data-1:
+  redis-data-2:
+  redis-data-3:
+  redis-data-4:
+  redis-data-5:
+  redis-data-6:
   prometheus-data:
   grafana-data:
 
@@ -510,6 +522,247 @@ services:
     mem_limit: 300M
     cpus: 1
 
+  redis-node-1:
+    image: redis:8.2.1
+    container_name: redis-node-1
+    hostname: redis-node-1
+    networks:
+      - redis_backend_network
+      - frontend_network
+    volumes:
+      # Configuration
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/conf/users.acl:/usr/local/etc/redis/users.acl
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
+      - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Scripts
+      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
+      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      # Data
+      - redis-data-1:/data
+    entrypoint: /usr/local/etc/redis/scripts/entrypoint.sh
+    command: >
+      /usr/local/etc/redis/redis.conf 
+      --port 6379 
+      --cluster-announce-hostname redis-node-1
+      --cluster-announce-human-nodename redis-node-1
+      --cluster-announce-ip redis-node-1
+      --cluster-announce-port 6379
+      --cluster-announce-bus-port 16379
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure:5
+    mem_limit: 1300M
+    cpus: 4
+    sysctls:
+      - net.core.somaxconn=1024
+
+  redis-node-2:
+    image: redis:8.2.1
+    container_name: redis-node-2
+    hostname: redis-node-2
+    networks:
+      - redis_backend_network
+      - frontend_network
+    volumes:
+      # Configuration
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/conf/users.acl:/usr/local/etc/redis/users.acl
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
+      - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Scripts
+      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
+      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      # Data
+      - redis-data-2:/data
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --port 6379 
+      --cluster-announce-hostname redis-node-2
+      --cluster-announce-human-nodename redis-node-2
+      --cluster-announce-ip redis-node-2
+      --cluster-announce-port 6379
+      --cluster-announce-bus-port 16379
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    mem_limit: 1300M
+    cpus: 4
+    sysctls:
+      - net.core.somaxconn=1024
+
+  redis-node-3:
+    image: redis:8.2.1
+    container_name: redis-node-3
+    hostname: redis-node-3
+    networks:
+      - redis_backend_network
+      - frontend_network
+    volumes:
+      # Configuration
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/conf/users.acl:/usr/local/etc/redis/users.acl
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
+      - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Scripts
+      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
+      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      # Data
+      - redis-data-3:/data
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --port 6379 
+      --cluster-announce-hostname redis-node-3
+      --cluster-announce-human-nodename redis-node-3
+      --cluster-announce-ip redis-node-3
+      --cluster-announce-port 6379
+      --cluster-announce-bus-port 16379
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    mem_limit: 1300M
+    cpus: 4
+    sysctls:
+      - net.core.somaxconn=1024
+
+  redis-node-4:
+    image: redis:8.2.1
+    container_name: redis-node-4
+    hostname: redis-node-4
+    networks:
+      - redis_backend_network
+      - frontend_network
+    volumes:
+      # Configuration
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/conf/users.acl:/usr/local/etc/redis/users.acl
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
+      - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Scripts
+      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
+      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      # Data
+      - redis-data-4:/data
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --port 6379 
+      --cluster-announce-hostname redis-node-4
+      --cluster-announce-human-nodename redis-node-4
+      --cluster-announce-ip redis-node-4
+      --cluster-announce-port 6379
+      --cluster-announce-bus-port 16379
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    mem_limit: 1300M
+    cpus: 4
+    sysctls:
+      - net.core.somaxconn=1024
+
+  redis-node-5:
+    image: redis:8.2.1
+    container_name: redis-node-5
+    hostname: redis-node-5
+    networks:
+      - redis_backend_network
+      - frontend_network
+    volumes:
+      # Configuration
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/conf/users.acl:/usr/local/etc/redis/users.acl
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
+      - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Scripts
+      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
+      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      # Data
+      - redis-data-5:/data
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --port 6379 
+      --cluster-announce-hostname redis-node-5
+      --cluster-announce-human-nodename redis-node-5
+      --cluster-announce-ip redis-node-5
+      --cluster-announce-port 6379
+      --cluster-announce-bus-port 16379
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    mem_limit: 1300M
+    cpus: 4
+    sysctls:
+      - net.core.somaxconn=1024
+
+  redis-node-6:
+    image: redis:8.2.1
+    container_name: redis-node-6
+    hostname: redis-node-6
+    networks:
+      - redis_backend_network
+      - frontend_network
+    volumes:
+      # Configuration
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/conf/users.acl:/usr/local/etc/redis/users.acl
+      # Secrets (in a real deployment, we will use Docker secrets)
+      - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
+      - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Scripts
+      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
+      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      # Data
+      - redis-data-6:/data
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --port 6379 
+      --cluster-announce-hostname redis-node-6
+      --cluster-announce-human-nodename redis-node-6
+      --cluster-announce-ip redis-node-6
+      --cluster-announce-port 6379
+      --cluster-announce-bus-port 16379
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: on-failure:5
+    mem_limit: 1300M
+    cpus: 4
+    sysctls:
+      - net.core.somaxconn=1024
+
   prometheus:
     image: 'prom/prometheus:v3.5.0'
     container_name: prometheus
@@ -586,7 +839,23 @@ services:
     environment:
       - ENV=development
     depends_on:
-      grafana:
+      pgpool:
+        condition: service_healthy
+      scylla-maintainer:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_healthy
+      redis-node-2:
+        condition: service_healthy
+      redis-node-3:
+        condition: service_healthy
+      redis-node-4:
+        condition: service_healthy
+      redis-node-5:
+        condition: service_healthy
+      redis-node-6:
+        condition: service_healthy
+      prometheus:
         condition: service_healthy
     mem_limit: 2GB
     cpus: 4

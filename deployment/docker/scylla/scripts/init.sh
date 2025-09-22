@@ -51,4 +51,4 @@ if [ ! -f "$LOCK_FILE" ]; then
 fi
 
 echo "$(date '+%F %T') ⏳ Performing repair..."
-nodetool --host $SCYLLA_HOST -u $SCYLLA_SUPERUSER_USERNAME --password "$SCYLLA_SUPERUSER_PASSWORD" cluster repair chat_db
+#nodetool --host $SCYLLA_HOST -u $SCYLLA_SUPERUSER_USERNAME --password "$SCYLLA_SUPERUSER_PASSWORD" cluster repair chat_db

@@ -1,0 +1,3 @@
+user default on #e14ab3c8c375c69ecd7f9dce814cca1c1052d7e36bd2ed579d4b975537742e94 ~* +@all
+user chat_rw on #f61eaa3c412ffee62baf35db909ff2d07ace2955c60fc1034eba5798fd4a9051 ~chat:* ~user:* +@all -@dangerous -@admin -@blocking -@keyspace -@scripting -@slow +client|setname +cluster|slots +command
+user replicator on #18e92184a915166cd2bb0410ba6e7683ed8abe8cad7169cac17e90e9c019ab42 +psync +replconf +ping
