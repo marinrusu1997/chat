@@ -1,0 +1,6 @@
+{
+  "index_patterns": ["chat-messages-*"],
+  "data_stream": {},
+  "composed_of": [ "chat_messages_settings_template", "chat_messages_mappings_template" ],
+  "priority": 500
+}

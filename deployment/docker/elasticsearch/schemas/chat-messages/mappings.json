@@ -1,0 +1,29 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": "false",
+      "properties": {
+        "@timestamp": { "type": "date", "format": "date_optional_time||epoch_millis" },
+        "chat_id":    { "type": "keyword" },
+        "message_id": { "type": "keyword" },
+        "sender_id":  { "type": "keyword" },
+        "message_type": { "type": "keyword" },
+        "content": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "content_encrypted": { "type": "text", "index": false },
+        "sent_at":  { "type": "date" },
+        "edited_at":  { "type": "date" },
+        "deleted_at": { "type": "date" },
+        "has_link":   { "type": "boolean" },
+        "has_attachment": { "type": "boolean" }
+      }
+    }
+  }
+}

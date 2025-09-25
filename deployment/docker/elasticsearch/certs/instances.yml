@@ -1,0 +1,22 @@
+# This file lists every Elasticsearch node from docker-compose.yml so the setup service can create a unique certificate for each one.
+instances:
+  - name: es-master-1
+    dns:
+      - es-master-1
+    ip:
+      - 172.23.0.11
+  - name: es-data-hot-1
+    dns:
+      - es-data-hot-1
+    ip:
+      - 172.23.0.21
+  - name: es-data-warm-1
+    dns:
+      - es-data-warm-1
+    ip:
+      - 172.23.0.22
+  - name: es-coordinating-1
+    dns:
+      - es-coordinating-1
+    ip:
+      - 172.23.0.31

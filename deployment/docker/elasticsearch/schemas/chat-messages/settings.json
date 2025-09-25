@@ -1,0 +1,13 @@
+{
+  "template": {
+    "settings": {
+      "number_of_shards": 3,
+      "number_of_replicas": 1,
+      "index.refresh_interval": "30s",
+      "index.translog.durability": "async",
+      "index.codec": "default",
+      "index.lifecycle.name": "90_day_retention_policy",
+      "index.default_pipeline": "add_timestamp"
+    }
+  }
+}
