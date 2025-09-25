@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "dist"
 
 [build]
-  cmd = "go build -o ./dist/main ./src"
+  cmd = "go build -o ./dist/main ./src > /tmp/go-build.log 2>&1"
   bin = "./dist/main"
   full_bin = "APP_BINARY=./dist/main ./dist/main"
   include_ext = ["go"]
@@ -11,7 +11,9 @@ tmp_dir = "dist"
   log = "air_errors.log"
 
 [log]
-  time = true
+  silent = true
+  main_only = true
+  time = false
 
 [misc]
   clean_on_exit = true

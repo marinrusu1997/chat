@@ -1,3 +1,0 @@
-env: "local"
-storage_path: "./storage/chat.db"
-token_ttl: 1h

@@ -1,19 +1,38 @@
 package main
 
 import (
+	"chat/src/elasticsearch"
 	"chat/src/postgres"
 	"chat/src/postgres/gen"
 	"chat/src/redis"
 	"chat/src/scylla"
 	"context"
-	"fmt"
-	"log"
+	"os"
 
 	"github.com/gocql/gocql"
 	redis2 "github.com/redis/go-redis/v9"
+	"go.elastic.co/ecszerolog"
 )
 
 func main() {
+	logger := ecszerolog.New(os.Stdout)
+	logger.Info().Str("version", "1.0.0").Msg("Application started")
+
+	// Elasticsearch
+	_, err := elasticsearch.CreateClient(elasticsearch.Config{
+		Addresses:      []string{"https://es-coordinating-1:9200"},
+		Username:       "chat_app_user",
+		Password:       "xG0-UU5v1dDoojVpWRXN",
+		ShouldLogReq:   true,
+		ShouldLogRes:   true,
+		CACertFilePath: "/app/certs/es/ca/ca.crt",
+	})
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create Elasticsearch client")
+	} else {
+		logger.Info().Msg("Elasticsearch all good")
+	}
+
 	// Scylla
 	session, err := scylla.CreateSession(scylla.SessionConfig{
 		// Hosts:          []string{"127.0.0.1"},
@@ -35,7 +54,7 @@ func main() {
 		panic(err)
 	}
 	defer session.Close()
-	fmt.Printf("Scylla all good\n")
+	logger.Info().Msg("Scylla all good")
 
 	// Redis
 	redisClient := redis.CreateClusterClient(redis.Config{
@@ -54,16 +73,16 @@ func main() {
 	defer func(redisClient *redis2.ClusterClient) {
 		err := redisClient.Close()
 		if err != nil {
-			log.Printf("Redis close error: %v", err)
+			logger.Warn().Err(err).Msg("Failed to close redis")
 		}
 	}(redisClient)
 	val, err := redisClient.Get(context.Background(), "chat:1").Result()
 	if err == redis2.Nil {
-		fmt.Println("Redis GET chat:1 = <nil>")
+		logger.Info().Msg("Redis GET chat:1 = <nil>")
 	} else if err != nil {
-		log.Printf("Redis GET error: %v", err)
+		logger.Warn().Err(err).Msg("Redis GET error")
 	} else {
-		fmt.Printf("Redis GET chat:1 = %s\n", val)
+		logger.Warn().Str("chat:1", val).Msg("Redis GET:")
 	}
 
 	// Postgres
@@ -74,7 +93,7 @@ func main() {
 		panic(err)
 	}
 	defer pool.Close()
-	fmt.Println("Successfully connected to PostgreSQL!")
+	logger.Info().Msg("Postgres all good")
 
 	queries := gen.New(pool)
 
@@ -85,23 +104,24 @@ func main() {
 		PasswordAlgo: 1,
 	}
 
-	fmt.Printf("Deleting user '%s'...\n", createUserParams.Email)
+	logger.Info().Str("email", createUserParams.Email).Msg("Deleting user")
 	err = queries.DeleteUserByEmail(ctx, createUserParams.Email)
 	if err != nil {
-		log.Printf("Failed to delete user: %v", err)
+		logger.Warn().Err(err).Msg("Failed to delete user")
 	}
 
-	fmt.Printf("Creating user '%s'...\n", createUserParams.Email)
+	logger.Info().Str("email", createUserParams.Email).Msg("Creating user")
 	newUser, err := queries.CreateUser(ctx, createUserParams)
 	if err != nil {
-		log.Fatalf("Failed to create user: %v\n", err)
+		logger.Fatal().Err(err).Msg("Failed to create user")
 	}
 
 	// 4. --- PRINTING THE RESULT ---
 	// The 'newUser' variable is a type-safe struct matching your database schema.
-	fmt.Println("User created successfully!!!!")
-	fmt.Printf("ID:        %s\n", newUser.ID.String())
-	fmt.Printf("Name:      %s\n", newUser.Name)
-	fmt.Printf("Email:     %s\n", newUser.Email)
-	fmt.Printf("CreatedAt: %s\n", newUser.CreatedAt.Time.String())
+	logger.Info().
+		Str("ID", newUser.ID.String()).
+		Str("Name", newUser.Name).
+		Str("Email", newUser.Email).
+		Str("CreatedAt", newUser.CreatedAt.Time.String()).
+		Msg("Successfully created user")
 }

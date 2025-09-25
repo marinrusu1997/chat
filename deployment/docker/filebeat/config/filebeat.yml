@@ -1,0 +1,144 @@
+# ========================== Filebeat Global Options ===========================
+# These settings apply to the Filebeat instance as a whole.
+
+# The name of the shipper. Using the hostname makes it easy to identify
+# which machine the logs are coming from.
+name: ${HOSTNAME}
+
+# Add custom tags for easy filtering in Kibana.
+tags: ["chat-app", "golang", "development"]
+
+# Add custom fields to every event. 'fields_under_root' promotes them
+# to the top level of the document for easier access.
+fields:
+  env: development
+  service.name: chat-app
+fields_under_root: true
+
+# Set the maximum number of CPUs that Filebeat can use.
+max_procs: 1
+
+# Configure the internal queue for buffering events. The 'balanced' preset
+# below will tune this, but this is how you would do it manually.
+# A larger queue can handle bursts of logs more effectively.
+queue.mem:
+   events: 8192
+   flush.min_events: 4096
+
+filebeat.config.modules:
+  enabled: false
+
+# =========================== Filebeat Autodiscover ============================
+# Use autodiscover to dynamically find and apply configurations to containers.
+# This is the best practice for containerized environments.
+
+#filebeat.inputs:
+#  - type: tcp
+#    host: "0.0.0.0:5044"
+#    json:
+#      message_key: message
+#      keys_under_root: true
+#      add_error_key: true
+#      expand_keys: true
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      hints.default_config.enabled: false
+
+      #hints.default_config:
+      #  type: filestream
+      #  id: container-${data.container.id}
+      #  prospector.scanner.symlinks: true
+      #  prospector.scanner.fingerprint.enabled: true
+      #  file_identity.fingerprint: ~
+      #  parsers:
+      #    - container: ~
+      #  paths:
+      #    - /var/lib/docker/containers/${data.container.id}/*.log
+
+# ================================= Processors =================================
+# Processors enrich events with additional metadata before they are sent.
+
+#processors:
+#  - add_docker_metadata: ~
+#  - add_host_metadata: ~
+
+processors:
+  - drop_fields:
+      fields:
+        # These fields are added by Filebeat's agent and host collectors
+        - container.image
+        - container.id
+        - log.offset
+        - log.file
+        - input
+        - tags
+        - ecs
+        - agent
+        - host
+        - stream
+        - service
+        - docker
+      ignore_missing: true
+
+# ================================== Setup ===================================
+# This section is ONLY used by the 'filebeat setup' command.
+# It uses the powerful credentials to configure Kibana and Elasticsearch.
+setup.ilm.overwrite: false
+setup.kibana:
+  host: '${KIBANA_HOST}'
+  username: '${ELASTICSEARCH_ELASTIC_USERNAME}'
+  password: '${ELASTICSEARCH_ELASTIC_PASSWORD}'
+  ssl:
+    enabled: true
+    certificate_authorities: [ "/usr/share/filebeat/config/certs/ca/ca.crt" ]
+
+# ================================== Outputs ===================================
+# Configure the connection to your Elasticsearch cluster.
+
+output.elasticsearch:
+  hosts: '${ELASTICSEARCH_HOSTS}'
+  username: '${ELASTICSEARCH_FILEBEAT_WRITER_USERNAME}'
+  password: '${ELASTICSEARCH_FILEBEAT_WRITER_PASSWORD}'
+
+  # The 'balanced' preset automatically tunes workers, bulk size, and pipelining
+  # for a good mix of throughput and resource usage. This is a great starting
+  # point for production.
+  preset: balanced
+
+  # Configure how Filebeat reconnects if Elasticsearch is unavailable.
+  backoff.init: 1s
+  backoff.max: 60s
+
+  ssl:
+    enabled: true
+    certificate_authorities: [ "/usr/share/filebeat/config/certs/ca/ca.crt" ]
+
+# ================================== Logging ===================================
+# Configure Filebeat's own internal logging.
+
+#logging.level: debug
+#logging.selectors: ["autodiscover", "docker"]
+logging.level: error
+logging.to_files: true
+logging.files:
+  path: /usr/share/filebeat/logs
+  name: filebeat
+  rotateeverybytes: 10485760 # 10 MB
+  keepfiles: 7
+  permissions: 0640
+
+# ============================= X-Pack Monitoring ==============================
+# Enable this to send Filebeat's own performance metrics to your cluster.
+# This allows you to monitor the health of your logging pipeline in Kibana.
+
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: '${ELASTICSEARCH_HOSTS}'
+  username: '${ELASTICSEARCH_FILEBEAT_MONITORING_USERNAME}'
+  password: '${ELASTICSEARCH_FILEBEAT_MONITORING_PASSWORD}'
+  ssl:
+    enabled: true
+    certificate_authorities: [ "/usr/share/filebeat/config/certs/ca/ca.crt" ]

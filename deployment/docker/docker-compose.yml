@@ -31,6 +31,12 @@ networks:
       driver: default
       config:
         - subnet: 172.22.0.0/16
+  elasticsearch_backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.23.0.0/16
 
 volumes:
   etcd-data:
@@ -46,6 +52,12 @@ volumes:
   redis-data-4:
   redis-data-5:
   redis-data-6:
+  es-master-data-1:
+  es-hot-data-1:
+  es-warm-data-1:
+  es-certs: # Shared Elasticsearch SSL certificates
+  es-kibana-data:
+  filebeat-data:
   prometheus-data:
   grafana-data:
 
@@ -76,7 +88,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 512M
     cpus: 0.5
 
@@ -130,7 +142,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 6G
     cpus: 12
 
@@ -183,7 +195,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 6G
     cpus: 12
 
@@ -236,7 +248,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 60 # Allow up to 10 minutes for initial setup
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 6G
     cpus: 12
 
@@ -249,8 +261,6 @@ services:
     networks:
       - postgres_backend_network
       - frontend_network
-    ports:
-      - "9999:9999"
     volumes:
       # Configuration
       - ./pgpool/conf/pcp.conf:/etc/pgpool2/pcp.conf
@@ -292,7 +302,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1G
     cpus: 4
 
@@ -316,7 +326,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     depends_on:
       pgpool:
         condition: service_healthy
@@ -332,8 +342,6 @@ services:
         aliases:
           - scylla-node1-internal # Give this node a specific name on the backend network
       frontend_network: # <-- Now you can safely add the frontend network
-    ports:
-      - "19041:19042"
     volumes:
       - ./scylla/config/rack1.properties:/etc/scylla/cassandra-rackdc.properties:ro
       - scylla-data-1:/var/lib/scylla
@@ -369,12 +377,12 @@ services:
       --experimental-features=udf
       --experimental-features=views-with-tablets
     healthcheck:
-      test: [ "CMD-SHELL", "nodetool status" ]
+      test: [ "CMD-SHELL", "nodetool status && sleep 10" ]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 4G
     cpus: 2
     cap_add:
@@ -389,8 +397,6 @@ services:
         aliases:
           - scylla-node2-internal
       frontend_network:
-    ports:
-      - "19042:19042"
     volumes:
       - ./scylla/config/rack2.properties:/etc/scylla/cassandra-rackdc.properties:ro
       - scylla-data-2:/var/lib/scylla
@@ -426,12 +432,12 @@ services:
       --experimental-features=udf
       --experimental-features=views-with-tablets
     healthcheck:
-      test: [ "CMD-SHELL", "nodetool status" ]
+      test: [ "CMD-SHELL", "nodetool status && sleep 5" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     depends_on:
       scylla-node1:
         condition: service_healthy
@@ -449,8 +455,6 @@ services:
         aliases:
           - scylla-node3-internal
       frontend_network:
-    ports:
-      - "19043:19042"
     volumes:
       - ./scylla/config/rack3.properties:/etc/scylla/cassandra-rackdc.properties:ro
       - scylla-data-3:/var/lib/scylla
@@ -486,14 +490,14 @@ services:
       --experimental-features=udf
       --experimental-features=views-with-tablets
     healthcheck:
-      test: [ "CMD-SHELL", "nodetool status" ]
+      test: [ "CMD-SHELL", "nodetool status && sleep 5" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     depends_on:
-      scylla-node1:
+      scylla-node2:
         condition: service_healthy
     mem_limit: 4G
     cpus: 2
@@ -519,8 +523,6 @@ services:
         condition: service_healthy
       scylla-node3:
         condition: service_healthy
-    mem_limit: 300M
-    cpus: 1
 
   redis-node-1:
     image: redis:8.2.1
@@ -557,7 +559,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1300M
     cpus: 4
     sysctls:
@@ -597,7 +599,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1300M
     cpus: 4
     sysctls:
@@ -637,7 +639,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1300M
     cpus: 4
     sysctls:
@@ -677,7 +679,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1300M
     cpus: 4
     sysctls:
@@ -717,7 +719,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1300M
     cpus: 4
     sysctls:
@@ -757,11 +759,298 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1300M
     cpus: 4
     sysctls:
       - net.core.somaxconn=1024
+
+  es-setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_STACK_VERSION}
+    container_name: es-setup
+    hostname: es-setup
+    networks:
+      - elasticsearch_backend_network
+    volumes:
+      - es-certs:/usr/share/elasticsearch/config/certs
+      - ./elasticsearch/certs/instances.yml:/usr/share/elasticsearch/config/certs/instances.yml
+      - ./elasticsearch/scripts/init.sh:/tmp/scripts/init.sh:ro
+      - ./redis/scripts/logger.sh:/tmp/scripts/logger.sh:ro
+      - ./elasticsearch/schemas/chat-messages/ilm.json:/tmp/schemas/chat-messages/ilm.json:ro
+      - ./elasticsearch/schemas/chat-messages/settings.json:/tmp/schemas/chat-messages/settings.json:ro
+      - ./elasticsearch/schemas/chat-messages/mappings.json:/tmp/schemas/chat-messages/mappings.json:ro
+      - ./elasticsearch/schemas/chat-messages/template.json:/tmp/schemas/chat-messages/template.json:ro
+    environment:
+      - ELASTICSEARCH_ELASTIC_USERNAME=${ELASTICSEARCH_ELASTIC_USERNAME}
+      - ELASTICSEARCH_ELASTIC_PASSWORD=${ELASTICSEARCH_ELASTIC_PASSWORD}
+      - ELASTICSEARCH_KIBANA_SYSTEM_USERNAME=${ELASTICSEARCH_KIBANA_SYSTEM_USERNAME}
+      - ELASTICSEARCH_KIBANA_SYSTEM_PASSWORD=${ELASTICSEARCH_KIBANA_SYSTEM_PASSWORD}
+      - ELASTICSEARCH_KIBANA_ADMIN_USERNAME=${ELASTICSEARCH_KIBANA_ADMIN_USERNAME}
+      - ELASTICSEARCH_KIBANA_ADMIN_PASSWORD=${ELASTICSEARCH_KIBANA_ADMIN_PASSWORD}
+      - ELASTICSEARCH_CHAT_APP_USERNAME=${ELASTICSEARCH_CHAT_APP_USERNAME}
+      - ELASTICSEARCH_CHAT_APP_PASSWORD=${ELASTICSEARCH_CHAT_APP_PASSWORD}
+      - ELASTICSEARCH_FILEBEAT_WRITER_USERNAME=${ELASTICSEARCH_FILEBEAT_WRITER_USERNAME}
+      - ELASTICSEARCH_FILEBEAT_WRITER_PASSWORD=${ELASTICSEARCH_FILEBEAT_WRITER_PASSWORD}
+      - ELASTICSEARCH_FILEBEAT_MONITORING_USERNAME=${ELASTICSEARCH_FILEBEAT_MONITORING_USERNAME}
+      - ELASTICSEARCH_FILEBEAT_MONITORING_PASSWORD=${ELASTICSEARCH_FILEBEAT_MONITORING_PASSWORD}
+    user: "0"
+    entrypoint: [ "/bin/bash", "/tmp/scripts/init.sh" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "[ -f config/certs/es-master-1/es-master-1.crt ]" ]
+      interval: 10s
+      timeout: 5s
+      retries: 120
+    restart: no
+    mem_limit: 200M
+    cpus: 1
+
+  es-master-1:
+    image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
+    container_name: es-master-1
+    hostname: es-master-1
+    networks:
+      elasticsearch_backend_network:
+        ipv4_address: 172.23.0.11
+    volumes:
+      - es-certs:/usr/share/elasticsearch/config/certs
+      - es-master-data-1:/usr/share/elasticsearch/data
+    environment:
+      - network.host=0.0.0.0
+      - network.publish_host=172.23.0.11
+      - node.name=es-master-1
+      - node.roles=master
+      - cluster.name=${ELASTICSEARCH_CLUSTER_NAME}
+      - discovery.seed_hosts=""
+      - cluster.initial_master_nodes=es-master-1
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_ELASTIC_PASSWORD}
+      - bootstrap.memory_lock=true # Rule: Disable swapping for performance
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Rule: Set -Xms and -Xmx equal. Use small heap for master nodes.
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/es-master-1/es-master-1.key
+      - xpack.security.http.ssl.certificate=certs/es-master-1/es-master-1.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es-master-1/es-master-1.key
+      - xpack.security.transport.ssl.certificate=certs/es-master-1/es-master-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=full
+    healthcheck:
+      test: ["CMD-SHELL","curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-master-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: "no"
+    mem_limit: 2GB
+    cpus: 1
+    depends_on:
+      es-setup: { condition: service_healthy }
+
+  es-data-hot-1:
+    image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
+    container_name: es-data-hot-1
+    hostname: es-data-hot-1
+    networks:
+      elasticsearch_backend_network:
+        ipv4_address: 172.23.0.21
+    volumes:
+      - es-certs:/usr/share/elasticsearch/config/certs
+      - es-hot-data-1:/usr/share/elasticsearch/data
+    environment:
+      - network.host=0.0.0.0
+      - network.publish_host=172.23.0.21
+      - node.name=es-data-hot-1
+      - node.roles=data
+      - node.attr.data_tier=hot
+      - cluster.name=${ELASTICSEARCH_CLUSTER_NAME}
+      - discovery.seed_hosts=es-master-1
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_ELASTIC_PASSWORD}
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g" # IMPORTANT: Set this to <= 50% of the host RAM, but do not exceed ~31GB.
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/es-data-hot-1/es-data-hot-1.key
+      - xpack.security.http.ssl.certificate=certs/es-data-hot-1/es-data-hot-1.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es-data-hot-1/es-data-hot-1.key
+      - xpack.security.transport.ssl.certificate=certs/es-data-hot-1/es-data-hot-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=full
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-data-hot-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: "no"
+    mem_limit: 6GB
+    cpus: 6
+    depends_on:
+      es-setup: { condition: service_healthy }
+
+  es-data-warm-1:
+    image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
+    container_name: es-data-warm-1
+    hostname: es-data-warm-1
+    networks:
+      elasticsearch_backend_network:
+        ipv4_address: 172.23.0.22
+    volumes:
+      - es-certs:/usr/share/elasticsearch/config/certs
+      - es-warm-data-1:/usr/share/elasticsearch/data
+    environment:
+      - network.host=0.0.0.0
+      - network.publish_host=172.23.0.22
+      - node.name=es-data-warm-1
+      - node.roles=data
+      - node.attr.data_tier=warm
+      - cluster.name=${ELASTICSEARCH_CLUSTER_NAME}
+      - discovery.seed_hosts=es-master-1
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_ELASTIC_PASSWORD}
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g" # IMPORTANT: Set this to <= 50% of the host RAM, but do not exceed ~31GB.
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/es-data-warm-1/es-data-warm-1.key
+      - xpack.security.http.ssl.certificate=certs/es-data-warm-1/es-data-warm-1.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es-data-warm-1/es-data-warm-1.key
+      - xpack.security.transport.ssl.certificate=certs/es-data-warm-1/es-data-warm-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=full
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-data-warm-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: "no"
+    mem_limit: 6GB
+    cpus: 6
+    depends_on:
+      es-setup: { condition: service_healthy }
+
+  es-coordinating-1:
+    image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
+    container_name: es-coordinating-1
+    hostname: es-coordinating-1
+    networks:
+      elasticsearch_backend_network:
+        ipv4_address: 172.23.0.31
+      frontend_network:
+    volumes:
+      - es-certs:/usr/share/elasticsearch/config/certs
+    environment:
+      - network.host=0.0.0.0
+      - network.publish_host=172.23.0.31
+      - node.name=es-coordinating-1
+      - node.roles="" # Empty role makes it coordinating-only
+      - cluster.name=${ELASTICSEARCH_CLUSTER_NAME}
+      - discovery.seed_hosts=es-master-1
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_ELASTIC_PASSWORD}
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms800m -Xmx800m" # Moderate heap for query aggregation.
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/es-coordinating-1/es-coordinating-1.key
+      - xpack.security.http.ssl.certificate=certs/es-coordinating-1/es-coordinating-1.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es-coordinating-1/es-coordinating-1.key
+      - xpack.security.transport.ssl.certificate=certs/es-coordinating-1/es-coordinating-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=full
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-coordinating-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: "no"
+    mem_limit: 4GB
+    cpus: 4
+    depends_on:
+      es-setup: { condition: service_healthy }
+
+  es-kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTICSEARCH_STACK_VERSION}
+    container_name: es-kibana
+    hostname: es-kibana
+    ports:
+      - "5781:5601"
+    networks:
+      - elasticsearch_backend_network
+    volumes:
+      - es-kibana-data:/usr/share/kibana/data
+      - es-certs:/usr/share/kibana/config/certs
+    environment:
+      - SERVERNAME=es-kibana
+      - ELASTICSEARCH_HOSTS=https://es-coordinating-1:9200
+      - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_KIBANA_SYSTEM_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_KIBANA_SYSTEM_PASSWORD}
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=/usr/share/kibana/config/certs/ca/ca.crt
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s --fail http://localhost:5601/api/status || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: "no"
+    mem_limit: 1GB
+    cpus: 2
+    depends_on:
+      es-setup: { condition: service_healthy }
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat-wolfi:${ELASTICSEARCH_STACK_VERSION}
+    container_name: filebeat
+    hostname: filebeat
+    user: root # Required to access Docker log files and socket
+    networks:
+      - elasticsearch_backend_network
+    volumes:
+      # --- Mount the scripts ---
+      - ./filebeat/scripts/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/tmp/scripts/logger.sh:ro
+      # Mounts for collecting logs and metadata from the Docker daemon
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Mount shared certificates for secure connection to Elasticsearch
+      - es-certs:/usr/share/filebeat/config/certs:ro
+      # Mount the configuration file
+      - ./filebeat/config/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      # Persist Filebeat's registry data to track log file positions
+      - filebeat-data:/usr/share/filebeat/data
+    environment:
+      # --- Credentials for the 'setup' command ---
+      - KIBANA_HOST=es-kibana:5601
+      - ELASTICSEARCH_ELASTIC_USERNAME=${ELASTICSEARCH_ELASTIC_USERNAME}
+      - ELASTICSEARCH_ELASTIC_PASSWORD=${ELASTICSEARCH_ELASTIC_PASSWORD}
+      # Credentials for sending logs to Elasticsearch
+      - ELASTICSEARCH_HOSTS=https://es-coordinating-1:9200
+      - ELASTICSEARCH_FILEBEAT_WRITER_USERNAME=${ELASTICSEARCH_FILEBEAT_WRITER_USERNAME}
+      - ELASTICSEARCH_FILEBEAT_WRITER_PASSWORD=${ELASTICSEARCH_FILEBEAT_WRITER_PASSWORD}
+      # Credentials for sending Filebeat's own monitoring data
+      - ELASTICSEARCH_FILEBEAT_MONITORING_USERNAME=${ELASTICSEARCH_FILEBEAT_MONITORING_USERNAME}
+      - ELASTICSEARCH_FILEBEAT_MONITORING_PASSWORD=${ELASTICSEARCH_FILEBEAT_MONITORING_PASSWORD}
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    healthcheck:
+      test: [ "CMD-SHELL", "filebeat test output" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: "no"
+    mem_limit: 1GB
+    cpus: 2
+    depends_on:
+      es-coordinating-1:
+        condition: service_healthy
+      es-kibana:
+        condition: service_healthy
 
   prometheus:
     image: 'prom/prometheus:v3.5.0'
@@ -794,7 +1083,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 2GB
     cpus: 4
 
@@ -822,7 +1111,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: on-failure:5
+    restart: "no"
     mem_limit: 1GB
     cpus: 2
 
@@ -836,12 +1125,17 @@ services:
       - frontend_network
     volumes:
       - ../../app:/app
+      - es-certs:/app/certs/es:ro
     environment:
       - ENV=development
     depends_on:
       pgpool:
         condition: service_healthy
-      scylla-maintainer:
+      scylla-node1:
+        condition: service_healthy
+      scylla-node2:
+        condition: service_healthy
+      scylla-node3:
         condition: service_healthy
       redis-node-1:
         condition: service_healthy
@@ -855,7 +1149,16 @@ services:
         condition: service_healthy
       redis-node-6:
         condition: service_healthy
+      es-coordinating-1:
+        condition: service_healthy
+      filebeat:
+        condition: service_healthy
       prometheus:
         condition: service_healthy
     mem_limit: 2GB
     cpus: 4
+    labels:
+      "co.elastic.logs/enabled": true
+      "co.elastic.logs/json.expand_keys": true
+      "co.elastic.logs/json.add_error_key": true
+      "co.elastic.logs/json.message_key": message

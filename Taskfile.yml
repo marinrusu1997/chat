@@ -114,6 +114,94 @@ tasks:
     cmds:
       - rimraf '{{.SCHEMAGEN_OUTPUT}}/gen.go'
 
+  elastic:wipe:
+    desc: 'Removes all docker containers and volumes associated with Elasticsearch, then restarts the stack'
+    cmds:
+      - |
+        (cd deployment/docker && \
+        TARGET_SERVICES=$(docker compose config --services | grep '^es-') && \
+        docker compose down -v $TARGET_SERVICES && \
+        docker compose up -d --force-recreate $TARGET_SERVICES
+        )
+
+  postgres:wipe:
+    desc: 'Removes all docker containers and volumes associated with PostgreSQL, then restarts the stack'
+    cmds:
+      - |
+        (cd deployment/docker && \
+        TARGET_SERVICES=$(docker compose config --services | grep -E '^pg-node-|^etcd$|^pgpool$|^pg-exporter$') && \
+        if [ -z "$TARGET_SERVICES" ]; then
+          echo "No target services found."
+        else
+          RUNNING_SERVICES=$(docker compose ps --services --filter status=running | grep -Ff - <<< "$TARGET_SERVICES") && \
+          if [ -n "$RUNNING_SERVICES" ]; then
+            echo "Stopping and removing running PostgreSQL services:"
+            echo "$RUNNING_SERVICES"
+            docker compose stop $RUNNING_SERVICES && docker compose rm -f $RUNNING_SERVICES
+          else
+            echo "No target PostgreSQL services are currently running. Skipping stop/remove."
+          fi && \
+          VOLUMES=$(docker volume ls -q --filter "name=pg-data-" --filter "name=etcd-data") && \
+          if [ -n "$VOLUMES" ]; then
+            echo "Removing volumes..."
+            echo "$VOLUMES" | xargs -r docker volume rm -f
+          fi && \
+          echo "Recreating all target PostgreSQL services..."
+          docker compose up -d --force-recreate $TARGET_SERVICES
+        fi)
+
+  scylla:wipe:
+    desc: 'Removes all docker containers and volumes associated with ScyllaDB, then restarts the stack'
+    cmds:
+      - |
+        (cd deployment/docker && \
+        TARGET_SERVICES=$(docker compose config --services | grep -E '^scylla-node|^scylla-maintainer$') && \
+        if [ -z "$TARGET_SERVICES" ]; then
+          echo "No target services found."
+        else
+          RUNNING_SERVICES=$(docker compose ps --services --filter status=running | grep -Ff - <<< "$TARGET_SERVICES") && \
+          if [ -n "$RUNNING_SERVICES" ]; then
+            echo "Stopping and removing running services:"
+            echo "$RUNNING_SERVICES"
+            docker compose stop $RUNNING_SERVICES && docker compose rm -f $RUNNING_SERVICES
+          else
+            echo "No target services are currently running. Skipping stop/remove."
+          fi && \
+          VOLUMES=$(docker volume ls -q --filter "name=scylla-data-") && \
+          if [ -n "$VOLUMES" ]; then
+            echo "Removing volumes..."
+            echo "$VOLUMES" | xargs -r docker volume rm -f
+          fi && \
+          echo "Recreating all target services..."
+          docker compose up -d --force-recreate $TARGET_SERVICES
+        fi)
+
+  redis:wipe:
+    desc: 'Removes all docker containers and volumes associated with Redis, then restarts the stack'
+    cmds:
+      - |
+        (cd deployment/docker && \
+        TARGET_SERVICES=$(docker compose config --services | grep '^redis-node-') && \
+        if [ -z "$TARGET_SERVICES" ]; then
+          echo "No target services found."
+        else
+          RUNNING_SERVICES=$(docker compose ps --services --filter status=running | grep -Ff - <<< "$TARGET_SERVICES") && \
+          if [ -n "$RUNNING_SERVICES" ]; then
+            echo "Stopping and removing running Redis services:"
+            echo "$RUNNING_SERVICES"
+            docker compose stop $RUNNING_SERVICES && docker compose rm -f $RUNNING_SERVICES
+          else
+            echo "No target Redis services are currently running. Skipping stop/remove."
+          fi && \
+          VOLUMES=$(docker volume ls -q --filter "name=redis-data-") && \
+          if [ -n "$VOLUMES" ]; then
+            echo "Removing volumes..."
+            echo "$VOLUMES" | xargs -r docker volume rm -f
+          fi && \
+          echo "Recreating all target Redis services..."
+          docker compose up -d --force-recreate $TARGET_SERVICES
+        fi)
+
   volumes:wipe:
     desc: 'Removes all named volumes associated with this project'
     cmds:
