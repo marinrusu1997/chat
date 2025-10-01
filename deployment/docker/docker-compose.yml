@@ -37,6 +37,12 @@ networks:
       driver: default
       config:
         - subnet: 172.23.0.0/16
+  neo4j_backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.24.0.0/16
 
 volumes:
   etcd-data:
@@ -58,6 +64,7 @@ volumes:
   es-certs: # Shared Elasticsearch SSL certificates
   es-kibana-data:
   filebeat-data:
+  neo4j-data:
   prometheus-data:
   grafana-data:
 
@@ -341,7 +348,7 @@ services:
       scylla_backend_network:
         aliases:
           - scylla-node1-internal # Give this node a specific name on the backend network
-      frontend_network: # <-- Now you can safely add the frontend network
+      frontend_network:
     volumes:
       - ./scylla/config/rack1.properties:/etc/scylla/cassandra-rackdc.properties:ro
       - scylla-data-1:/var/lib/scylla
@@ -1052,6 +1059,58 @@ services:
       es-kibana:
         condition: service_healthy
 
+  neo4j:
+    image: neo4j:5.26.12-enterprise-ubi9
+    container_name: neo4j
+    hostname: neo4j
+    networks:
+      neo4j_backend_network:
+      frontend_network:
+    ports:
+      - "7474:7474"   # HTTP
+    volumes:
+      - neo4j-data:/data
+      - ./neo4j/scripts/setup.sh:/startup/setup.sh:ro
+      - ./neo4j/scripts/entrypoint.sh:/startup/entrypoint.sh:ro
+      - ./neo4j/schema/chat.cypher:/schema/chat.cypher:ro
+      - ./redis/scripts/logger.sh:/tmp/scripts/logger.sh:ro
+    environment:
+      # --- Authentication & License ---
+      # This password is used by the setup script and should be changed or secured.
+      - NEO4J_AUTH=neo4j/${NEO4J_NEO4J_USER_PASSWORD}
+      - SCRIPT_PASSWORD_NEO4J=${NEO4J_NEO4J_USER_PASSWORD}
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+
+      # --- Performance Tuning: Memory ---
+      - NEO4J_server_memory_heap_initial__size=1G
+      - NEO4J_server_memory_heap_max__size=1G
+      - NEO4J_server_memory_pagecache_size=2.5G
+
+      # --- Performance Tuning: Checkpointing & Transactions ---
+      - NEO4J_db_checkpoint=VOLUMETRIC # Sets checkpointing policy based on transaction log volume, ideal for write-heavy loads.
+      - NEO4J_db_lock_acquisition_timeout=10s # Sets a timeout for transactions waiting to acquire a lock, preventing deadlocks.
+      - NEO4J_db_tx__log_rotation_retention__policy=2 days 2G # Specifies how long to keep transaction logs.
+
+      # --- Security and Networking ---
+      - NEO4J_server_default__listen__address=0.0.0.0
+      - NEO4J_server_bolt_tls__level=DISABLED
+
+      # --- Monitoring ---
+      - NEO4J_server_metrics_prometheus_enabled=false
+
+      # --- Connectivity ---
+      - NEO4J_initial_dbms_default__database=chatdb
+    entrypoint: [ "/startup/entrypoint.sh" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_NEO4J_USER_PASSWORD} 'RETURN 1'" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: "no"
+    mem_limit: 4GB
+    cpus: 4
+
   prometheus:
     image: 'prom/prometheus:v3.5.0'
     container_name: prometheus
@@ -1152,6 +1211,8 @@ services:
       es-coordinating-1:
         condition: service_healthy
       filebeat:
+        condition: service_healthy
+      neo4j:
         condition: service_healthy
       prometheus:
         condition: service_healthy

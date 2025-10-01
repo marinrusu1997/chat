@@ -2,6 +2,7 @@ package main
 
 import (
 	"chat/src/elasticsearch"
+	"chat/src/neo4j"
 	"chat/src/postgres"
 	"chat/src/postgres/gen"
 	"chat/src/redis"
@@ -10,6 +11,7 @@ import (
 	"os"
 
 	"github.com/gocql/gocql"
+	j "github.com/neo4j/neo4j-go-driver/v6/neo4j"
 	redis2 "github.com/redis/go-redis/v9"
 	"go.elastic.co/ecszerolog"
 )
@@ -18,8 +20,22 @@ func main() {
 	logger := ecszerolog.New(os.Stdout)
 	logger.Info().Str("version", "1.0.0").Msg("Application started")
 
+	// Neo4j
+	neo4jDriver, err := neo4j.CreateDriver(neo4j.Config{
+		DbUri:      "neo4j://neo4j:7687",
+		DbUser:     "neo4j",
+		DbPassword: "xL2_RIfpD4q8nRoj4vsg",
+	})
+	defer func(neo4jDriver j.Driver, ctx context.Context) {
+		err := neo4jDriver.Close(ctx)
+		if err != nil {
+			logger.Warn().Err(err).Msg("Failed to close Neo4j driver")
+		}
+	}(neo4jDriver, context.Background())
+	logger.Info().Msg("Neo4j all good")
+
 	// Elasticsearch
-	_, err := elasticsearch.CreateClient(elasticsearch.Config{
+	_, err = elasticsearch.CreateClient(elasticsearch.Config{
 		Addresses:      []string{"https://es-coordinating-1:9200"},
 		Username:       "chat_app_user",
 		Password:       "xG0-UU5v1dDoojVpWRXN",

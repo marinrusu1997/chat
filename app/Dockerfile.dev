@@ -1,5 +1,5 @@
 FROM golang:1.25-alpine
 RUN go install github.com/air-verse/air@latest
-RUN apk add --no-cache build-base geos-dev pkgconf geos
+RUN apk update && apk add --no-cache build-base geos-dev pkgconf geos busybox-extras netcat-openbsd
 WORKDIR /app
 CMD ["air"]

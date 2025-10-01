@@ -33,6 +33,7 @@ require (
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/neo4j/neo4j-go-driver/v6 v6.0.0-alpha.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/scylladb/go-reflectx v1.0.1 // indirect
