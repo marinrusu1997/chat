@@ -891,13 +891,12 @@ define_acl() {
 		if [ ! -f "$marker_file" ]; then
 			log_info "AclDefinition" "Marker file not found: ${marker_file}. Running ACL setup."
 
-			local -r user_inbox_topic_prefix="msg-user-inbox-"
-			local -r group_chat_topic_prefix="msg-group-chat-"
-			local -r system_alerts_topic="msg-system-alerts"
-			local -r chat_messages_consumer_group_prefix="msg-chat"
+			local -r user_inbox_topic="user-inbox"
+			local -r group_inbox_topic="group-inbox"
+			local -r system_alerts_topic="system-alerts"
+			local -r chat_messages_consumer_group_prefix="chat"
 
 			local -r schema_registry_schemas_topic="_csr_schemas"
-			local -r schema_registry_group_id="schema-registry-grp"
 
 			# ====================================================================
 			# 1. chat_admin
@@ -917,8 +916,7 @@ define_acl() {
 
 			# 2. TOPIC management
 			kafka_exec kafka-acls \
-				--topic "$user_inbox_topic_prefix" \
-				--resource-pattern-type PREFIXED \
+				--topic "$user_inbox_topic" \
 				--add \
 				--operation Create \
 				--operation Delete \
@@ -930,8 +928,7 @@ define_acl() {
 				--allow-principal "$chat_admin_principal"
 
 			kafka_exec kafka-acls \
-				--topic "$group_chat_topic_prefix" \
-				--resource-pattern-type PREFIXED \
+				--topic "$group_inbox_topic" \
 				--add \
 				--operation Create \
 				--operation Delete \
@@ -972,8 +969,7 @@ define_acl() {
 			local -r chat_prod_cons_principal="User:chat_prod_cons"
 			# 1. TOPIC access
 			kafka_exec kafka-acls \
-				--topic "$user_inbox_topic_prefix" \
-				--resource-pattern-type PREFIXED \
+				--topic "$user_inbox_topic" \
 				--add \
 				--operation Read \
 				--operation Write \
@@ -982,8 +978,7 @@ define_acl() {
 				--allow-principal "$chat_prod_cons_principal"
 
 			kafka_exec kafka-acls \
-				--topic "$group_chat_topic_prefix" \
-				--resource-pattern-type PREFIXED \
+				--topic "$group_inbox_topic" \
 				--add \
 				--operation Read \
 				--operation Write \

@@ -11,8 +11,8 @@ tmp_dir = "dist"
   log = "air_errors.log"
 
 [log]
-  silent = true
-  main_only = true
+  silent = false
+  main_only = false
   time = false
 
 [misc]

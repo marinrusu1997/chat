@@ -2,6 +2,7 @@ package main
 
 import (
 	"chat/src/elasticsearch"
+	"chat/src/kafka"
 	"chat/src/neo4j"
 	"chat/src/postgres"
 	"chat/src/postgres/gen"
@@ -21,6 +22,12 @@ import (
 func main() {
 	logger := ecszerolog.New(os.Stdout)
 	logger.Info().Str("version", "1.0.0").Msg("Application started")
+
+	// @fixme Kafka
+	err := kafka.OrchestrateGroupKafkaTest(&logger)
+	if err != nil {
+		panic(err)
+	}
 
 	// Neo4j
 	neo4jDriver, err := neo4j.CreateDriver(neo4j.Config{
