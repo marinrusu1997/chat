@@ -16,6 +16,8 @@ import (
 	"go.elastic.co/ecszerolog"
 )
 
+// @FIXME: https://github.com/uber-go/guide/tree/master
+
 func main() {
 	logger := ecszerolog.New(os.Stdout)
 	logger.Info().Str("version", "1.0.0").Msg("Application started")
