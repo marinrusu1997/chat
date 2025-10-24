@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# kafka-healthcheck.sh
-# Usage: BOOTSTRAP_SERVERS="kafka1:9092,kafka2:9092,kafka3:9092" KAFKA_BIN=/opt/kafka/bin ./kafka-healthcheck.sh
 set -Eeuo pipefail
 
 # Import dependencies

@@ -4,9 +4,9 @@ import (
 	"runtime"
 )
 
-func GetFunctionName(skip int) string {
+func GetFunctionName() string {
 	// pc: program counter, file: file name, line: line number, ok: success bool
-	pc, _, _, ok := runtime.Caller(skip)
+	pc, _, _, ok := runtime.Caller(1)
 	if !ok {
 		return "unknown function"
 	}

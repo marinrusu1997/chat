@@ -55,7 +55,7 @@ keytool -importcert -alias "$CA_ALIAS" -file "$CA_CERT" -keystore "$TRUSTSTORE_F
 	-storepass "$TRUSTSTORE_PASS" -noprompt -trustcacerts
 echo "----- Created shared Truststore ($TRUSTSTORE_FILE) with CA public certificate."
 
-# --- 5. CREATE BROKER KEYS AND SIGN THEM (FIX 2) ---
+# --- 5. CREATE BROKER KEYS AND SIGN THEM ---
 for NODE in "${KAFKA_NODES[@]}"; do
 	BROKER_KEYSTORE="$SECRETS_DIR/$NODE.keystore.jks"
 	BROKER_CSR="$SECRETS_DIR/$NODE.csr"

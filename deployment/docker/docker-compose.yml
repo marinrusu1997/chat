@@ -70,7 +70,7 @@ volumes:
   es-certs: # Shared Elasticsearch SSL certificates
   es-kibana-data:
   filebeat-data:
-  neo4j-data:
+  neo4j-data-1:
   kafka-data-1:
   kafka-data-2:
   kafka-data-3:
@@ -284,7 +284,8 @@ services:
       - ./pgpool/conf/pgpool.conf:/tmp/pgpool.conf.template:ro
       - ./pgpool/conf/pool_hba.conf:/etc/pgpool2/pool_hba.conf:ro
       # SSL Certificates
-      - ./pgpool/certs:/etc/pgpool2/certs
+      - ./cert-generator/output/services/pgpool/private.key:/etc/pgpool2/certs/private.key:ro
+      - ./cert-generator/output/services/pgpool/public.crt:/etc/pgpool2/certs/public.crt:ro
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./pgpool/secrets/pgpoolkey.txt:/var/lib/postgresql/.pgpoolkey
       - ./pgpool/secrets/pcppass.txt:/var/lib/postgresql/.pcppass
@@ -307,7 +308,6 @@ services:
       sh -c "
         chown postgres:postgres /var/lib/postgresql/.pgpoolkey && chmod 400 /var/lib/postgresql/.pgpoolkey &&
         chown postgres:postgres /etc/pgpool2/pcp.conf && chmod 400 /etc/pgpool2/pcp.conf &&
-        chown -R postgres:postgres /etc/pgpool2/certs && chmod -R 400 /etc/pgpool2/certs && chmod 500 /etc/pgpool2/certs &&
         bash /etc/pgpool2/custom_pre_init.sh &&
         chown postgres:postgres /var/lib/postgresql/.pcppass && chmod 400 /var/lib/postgresql/.pcppass && 
         rm -f /tmp/pgpool.pid /tmp/.s.PGSQL.* && 
@@ -525,7 +525,7 @@ services:
     image: scylladb/scylla:2025.3
     container_name: scylla-maintainer
     networks:
-      - frontend_network
+      - scylla_backend_network
     volumes:
       - ./scylla/scripts/init.cql:/tmp/init.cql:ro
       - ./scylla/scripts/init.sh:/tmp/init.sh:ro
@@ -547,7 +547,6 @@ services:
     hostname: redis-node-1
     networks:
       - redis_backend_network
-      - frontend_network
     volumes:
       # Configuration
       - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -555,21 +554,20 @@ services:
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
       - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/usr/local/etc/redis/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/redis-node-1/private.key:/usr/local/etc/redis/certs/private.key:ro
+      - ./cert-generator/output/services/redis-node-1/public.crt:/usr/local/etc/redis/certs/public.crt:ro
       # Scripts
-      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
-      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
-      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      - ./redis/scripts:/usr/local/etc/redis/scripts/:ro
       # Data
       - redis-data-1:/data
     entrypoint: /usr/local/etc/redis/scripts/entrypoint.sh
     command: >
       /usr/local/etc/redis/redis.conf 
-      --port 6379 
       --cluster-announce-hostname redis-node-1
       --cluster-announce-human-nodename redis-node-1
       --cluster-announce-ip redis-node-1
-      --cluster-announce-port 6379
-      --cluster-announce-bus-port 16379
     healthcheck:
       test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
       interval: 30s
@@ -588,7 +586,6 @@ services:
     hostname: redis-node-2
     networks:
       - redis_backend_network
-      - frontend_network
     volumes:
       # Configuration
       - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -596,20 +593,19 @@ services:
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
       - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/usr/local/etc/redis/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/redis-node-2/private.key:/usr/local/etc/redis/certs/private.key:ro
+      - ./cert-generator/output/services/redis-node-2/public.crt:/usr/local/etc/redis/certs/public.crt:ro
       # Scripts
-      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
-      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
-      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      - ./redis/scripts:/usr/local/etc/redis/scripts/:ro
       # Data
       - redis-data-2:/data
     command: >
       redis-server /usr/local/etc/redis/redis.conf
-      --port 6379 
       --cluster-announce-hostname redis-node-2
       --cluster-announce-human-nodename redis-node-2
       --cluster-announce-ip redis-node-2
-      --cluster-announce-port 6379
-      --cluster-announce-bus-port 16379
     healthcheck:
       test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
       interval: 30s
@@ -628,7 +624,6 @@ services:
     hostname: redis-node-3
     networks:
       - redis_backend_network
-      - frontend_network
     volumes:
       # Configuration
       - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -636,20 +631,19 @@ services:
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
       - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/usr/local/etc/redis/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/redis-node-3/private.key:/usr/local/etc/redis/certs/private.key:ro
+      - ./cert-generator/output/services/redis-node-3/public.crt:/usr/local/etc/redis/certs/public.crt:ro
       # Scripts
-      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
-      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
-      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      - ./redis/scripts:/usr/local/etc/redis/scripts/:ro
       # Data
       - redis-data-3:/data
     command: >
       redis-server /usr/local/etc/redis/redis.conf
-      --port 6379 
       --cluster-announce-hostname redis-node-3
       --cluster-announce-human-nodename redis-node-3
       --cluster-announce-ip redis-node-3
-      --cluster-announce-port 6379
-      --cluster-announce-bus-port 16379
     healthcheck:
       test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
       interval: 30s
@@ -668,7 +662,6 @@ services:
     hostname: redis-node-4
     networks:
       - redis_backend_network
-      - frontend_network
     volumes:
       # Configuration
       - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -676,20 +669,19 @@ services:
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
       - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/usr/local/etc/redis/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/redis-node-4/private.key:/usr/local/etc/redis/certs/private.key:ro
+      - ./cert-generator/output/services/redis-node-4/public.crt:/usr/local/etc/redis/certs/public.crt:ro
       # Scripts
-      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
-      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
-      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      - ./redis/scripts:/usr/local/etc/redis/scripts/:ro
       # Data
       - redis-data-4:/data
     command: >
       redis-server /usr/local/etc/redis/redis.conf
-      --port 6379 
       --cluster-announce-hostname redis-node-4
       --cluster-announce-human-nodename redis-node-4
       --cluster-announce-ip redis-node-4
-      --cluster-announce-port 6379
-      --cluster-announce-bus-port 16379
     healthcheck:
       test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
       interval: 30s
@@ -708,7 +700,6 @@ services:
     hostname: redis-node-5
     networks:
       - redis_backend_network
-      - frontend_network
     volumes:
       # Configuration
       - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -716,20 +707,19 @@ services:
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
       - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/usr/local/etc/redis/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/redis-node-5/private.key:/usr/local/etc/redis/certs/private.key:ro
+      - ./cert-generator/output/services/redis-node-5/public.crt:/usr/local/etc/redis/certs/public.crt:ro
       # Scripts
-      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
-      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
-      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      - ./redis/scripts:/usr/local/etc/redis/scripts/:ro
       # Data
       - redis-data-5:/data
     command: >
       redis-server /usr/local/etc/redis/redis.conf
-      --port 6379 
       --cluster-announce-hostname redis-node-5
       --cluster-announce-human-nodename redis-node-5
       --cluster-announce-ip redis-node-5
-      --cluster-announce-port 6379
-      --cluster-announce-bus-port 16379
     healthcheck:
       test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
       interval: 30s
@@ -748,7 +738,6 @@ services:
     hostname: redis-node-6
     networks:
       - redis_backend_network
-      - frontend_network
     volumes:
       # Configuration
       - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -756,20 +745,19 @@ services:
       # Secrets (in a real deployment, we will use Docker secrets)
       - ./redis/secrets/default.pass:/usr/local/etc/redis/secrets/default.pass:ro
       - ./redis/secrets/replicator.pass:/usr/local/etc/redis/secrets/replicator.pass:ro
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/usr/local/etc/redis/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/redis-node-6/private.key:/usr/local/etc/redis/certs/private.key:ro
+      - ./cert-generator/output/services/redis-node-6/public.crt:/usr/local/etc/redis/certs/public.crt:ro
       # Scripts
-      - ./redis/scripts/entrypoint.sh:/usr/local/etc/redis/scripts/entrypoint.sh:ro
-      - ./redis/scripts/logger.sh:/usr/local/etc/redis/scripts/logger.sh:ro
-      - ./redis/scripts/healthcheck.sh:/usr/local/etc/redis/scripts/healthcheck.sh:ro
+      - ./redis/scripts:/usr/local/etc/redis/scripts/:ro
       # Data
       - redis-data-6:/data
     command: >
       redis-server /usr/local/etc/redis/redis.conf
-      --port 6379 
       --cluster-announce-hostname redis-node-6
       --cluster-announce-human-nodename redis-node-6
       --cluster-announce-ip redis-node-6
-      --cluster-announce-port 6379
-      --cluster-announce-bus-port 16379
     healthcheck:
       test: ["CMD", "bash", "/usr/local/etc/redis/scripts/healthcheck.sh"]
       interval: 30s
@@ -1069,17 +1057,19 @@ services:
       es-kibana:
         condition: service_healthy
 
-  neo4j:
+  neo4j-node-1:
     image: neo4j:5.26.12-enterprise-ubi9
-    container_name: neo4j
-    hostname: neo4j
+    container_name: neo4j-node-1
+    hostname: neo4j-node-1
     networks:
       neo4j_backend_network:
       frontend_network:
     ports:
-      - "7474:7474"   # HTTP
+      - "7473:7473"   # HTTPS
     volumes:
-      - neo4j-data:/data
+      - neo4j-data-1:/data
+      - ./neo4j/certs:/var/lib/neo4j/certificates/bolt
+      - ./neo4j/certs:/var/lib/neo4j/certificates/https
       - ./neo4j/scripts/setup.sh:/startup/setup.sh:ro
       - ./neo4j/scripts/entrypoint.sh:/startup/entrypoint.sh:ro
       - ./neo4j/schema/chat.cypher:/schema/chat.cypher:ro
@@ -1103,7 +1093,21 @@ services:
 
       # --- Security and Networking ---
       - NEO4J_server_default__listen__address=0.0.0.0
-      - NEO4J_server_bolt_tls__level=DISABLED
+      - NEO4J_dbms_netty_ssl_provider=OPENSSL
+      - NEO4J_server_bolt_enabled=true
+      - NEO4J_server_bolt_tls__level=REQUIRED
+      - NEO4J_dbms_ssl_policy_bolt_enabled=true
+      - NEO4J_dbms_ssl_policy_bolt_base_directory=/var/lib/neo4j/certificates/bolt
+      - NEO4J_dbms_ssl_policy_bolt_private_key=private.key
+      - NEO4J_dbms_ssl_policy_bolt_public_certificate=public.crt
+      - NEO4J_dbms_ssl_policy_bolt_client_auth=NONE
+      - NEO4J_server_http_enabled=false
+      - NEO4J_server_https_enabled=true
+      - NEO4J_dbms_ssl_policy_https_enabled=true
+      - NEO4J_dbms_ssl_policy_https_base_directory=/var/lib/neo4j/certificates/https
+      - NEO4J_dbms_ssl_policy_https_private_key=private.key
+      - NEO4J_dbms_ssl_policy_https_public_certificate=public.crt
+      - NEO4J_dbms_ssl_policy_https_client_auth=NONE
 
       # --- Monitoring ---
       - NEO4J_server_metrics_prometheus_enabled=false
@@ -1112,7 +1116,7 @@ services:
       - NEO4J_initial_dbms_default__database=chatdb
     entrypoint: [ "/startup/entrypoint.sh" ]
     healthcheck:
-      test: [ "CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_NEO4J_USER_PASSWORD} 'RETURN 1'" ]
+      test: [ "CMD-SHELL", "cypher-shell -a bolt+ssc://localhost:7687 -u neo4j -p ${NEO4J_NEO4J_USER_PASSWORD} 'RETURN 1'" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1691,20 +1695,28 @@ services:
     mem_limit: 1GB
     cpus: 2
 
-  chat-app:
+  chat-app-1:
     build:
       context: ../../app
       dockerfile: Dockerfile.dev
-    container_name: chat-app
-    hostname: chat-app
+    container_name: chat-app-1
+    hostname: chat-app-1
     networks:
       - frontend_network
+      - redis_backend_network
     volumes:
       - ../../app:/app
-      - ./kafka/secrets/ca.crt:/app/certs/kafka/ca.crt:ro
+      - ../../config:/app/config:ro
+      - ./kafka/secrets/ca.crt:/app/certs/kafka/ca/public.crt:ro
       - es-certs:/app/certs/es:ro
+      - ./cert-generator/output/ca/root.crt:/app/certs/root/ca/public.crt:ro
+      - ./cert-generator/output/services/chat-app-1/public.crt:/app/certs/own/public.crt:ro
+      - ./cert-generator/output/services/chat-app-1/private.key:/app/certs/own/private.key:ro
     environment:
-      - ENV=development
+      ENV: development
+      BUILD_VERSION: ${CHAT_APP_VERSION}
+      BUILD_COMMIT: ${CHAT_APP_COMMIT}
+      BUILD_TIME: ${CHAT_APP_BUILD_TIME}
     depends_on:
       pgpool:
         condition: service_healthy
@@ -1730,7 +1742,7 @@ services:
         condition: service_healthy
       filebeat:
         condition: service_healthy
-      neo4j:
+      neo4j-node-1:
         condition: service_healthy
       kafka1:
         condition: service_healthy

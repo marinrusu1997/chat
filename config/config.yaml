@@ -1,0 +1,74 @@
+logging:
+  root_level: "info"
+  pretty_print: true
+  literal_levels:
+    "client.neo4j.driver": "warn"
+    "client.neo4j.session": "warn"
+
+postgresql:
+  username: "chat_rw"
+  password: "bR4--RqiFyNQGZZiLG4e"
+  host: "pgpool"
+  port: 9999
+  ca_cert_file_path: "/app/certs/root/ca/public.crt"
+  dbname: "chat_db"
+
+scylladb:
+  hosts:
+    - "scylla-node1"
+    - "scylla-node2"
+    - "scylla-node3"
+  shard_aware_port: 19042
+  local_dc: "DC1"
+  keyspace: "chat_db"
+  username: "chat_rw"
+  password: "yT3-4d5dQiD6S-yHfThN"
+
+redis:
+  addresses:
+    - "redis-node-1:6379"
+    - "redis-node-2:6379"
+    - "redis-node-3:6379"
+    - "redis-node-4:6379"
+    - "redis-node-5:6379"
+    - "redis-node-6:6379"
+  username: "chat_rw"
+  password: "Ch@t-@pp-Us€r-P@ssw0rd-!n-Pr0d"
+  ca_cert_file_path: "/app/certs/root/ca/public.crt"
+  mtls_cert_file_path: "/app/certs/own/public.crt"
+  mtls_key_file_path: "/app/certs/own/private.key"
+
+elasticsearch:
+  addresses:
+    - "https://es-coordinating-1:9200"
+  ca_cert_file_path: "/app/certs/es/ca/ca.crt"
+  username: "chat_app_user"
+  password: "xG0-UU5v1dDoojVpWRXN"
+  should_log_req: false
+  should_log_res: false
+
+neo4j:
+  uri: "neo4j+s://neo4j-node-1:7687"
+  ca_cert_file_path: "/app/certs/root/ca/public.crt"
+  username: "neo4j"
+  password: "xL2_RIfpD4q8nRoj4vsg"
+  database_name: "chatdb"
+
+kafka:
+  seed_brokers:
+    - "kafka1:9092"
+    - "kafka2:9092"
+    - "kafka3:9092"
+  ca_cert_file_path: "/app/certs/kafka/ca/public.crt"
+  users:
+    admin:
+      username: "chat_admin"
+      password: "eP7-KlADI-hWmWeGcEQC"
+    data:
+      username: "chat_prod_cons"
+      password: "cT5_mevs6MCdzo19H3xn"
+  topics:
+    user_inbox: "user-inbox"
+    group_inbox: "group-inbox"
+    user_notifications: "user-notifications"
+  group_id: "chatgroup"
