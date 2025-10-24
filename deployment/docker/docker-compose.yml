@@ -1701,10 +1701,14 @@ services:
       - frontend_network
     volumes:
       - ../../app:/app
+      - ../../config:/app/config:ro
       - ./kafka/secrets/ca.crt:/app/certs/kafka/ca.crt:ro
       - es-certs:/app/certs/es:ro
     environment:
-      - ENV=development
+      ENV: development
+      BUILD_VERSION: ${CHAT_APP_VERSION}
+      BUILD_COMMIT: ${CHAT_APP_COMMIT}
+      BUILD_TIME: ${CHAT_APP_BUILD_TIME}
     depends_on:
       pgpool:
         condition: service_healthy

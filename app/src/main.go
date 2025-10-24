@@ -4,36 +4,63 @@ import (
 	"chat/src/elasticsearch"
 	"chat/src/kafka"
 	"chat/src/neo4j"
-	"chat/src/postgres"
-	"chat/src/postgres/gen"
+	"chat/src/platform/config"
+	"chat/src/platform/logging"
+	"chat/src/postgresql"
+	"chat/src/postgresql/gen"
 	"chat/src/redis"
 	"chat/src/scylla"
 	"context"
-	"os"
+	"fmt"
 
 	"github.com/gocql/gocql"
 	j "github.com/neo4j/neo4j-go-driver/v6/neo4j"
 	redis2 "github.com/redis/go-redis/v9"
-	"go.elastic.co/ecszerolog"
+	"go.yaml.in/yaml/v3"
 )
 
 // @FIXME: https://github.com/uber-go/guide/tree/master
 
 func main() {
-	logger := ecszerolog.New(os.Stdout)
-	logger.Info().Str("version", "1.0.0").Msg("Application started")
+	cfg, err := config.Load(config.LoadConfigOptions{
+		YamlFilePaths: []string{"/app/config/config.yaml"},
+		EnvVarPrefix:  "CHAT_APP_",
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Error loading config: %+v", err))
+	}
+
+	loggerFactory, err := logging.NewFactory(logging.Options{
+		AppInstanceID: cfg.Application.InstanceName,
+		AppVersion:    cfg.Application.Version,
+		AppCommit:     cfg.Application.Commit,
+		AppBuildDate:  cfg.Application.BuildTime,
+		RootLevel:     cfg.Logging.RootLevel,
+		LiteralLevels: cfg.Logging.LiteralLevels,
+		RegexLevels:   cfg.Logging.RegexLevels,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Error creating logger factory: %+v", err))
+	}
+	logger := loggerFactory.Child("main")
+
+	cfgBytes, err := yaml.Marshal(cfg)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to marshal config")
+	}
+	logger.Info().Msgf("Using config:\n%s", string(cfgBytes))
 
 	// @fixme Kafka
-	err := kafka.OrchestrateGroupKafkaTest(&logger)
+	err = kafka.OrchestrateKafkaTest(&logger)
 	if err != nil {
 		panic(err)
 	}
 
 	// Neo4j
 	neo4jDriver, err := neo4j.CreateDriver(neo4j.Config{
-		DbUri:      "neo4j://neo4j:7687",
-		DbUser:     "neo4j",
-		DbPassword: "xL2_RIfpD4q8nRoj4vsg",
+		Uri:      "neo4j://neo4j:7687",
+		Username: "neo4j",
+		Password: "xL2_RIfpD4q8nRoj4vsg",
 	})
 	defer func(neo4jDriver j.Driver, ctx context.Context) {
 		err := neo4jDriver.Close(ctx)
@@ -61,7 +88,7 @@ func main() {
 	// Scylla
 	session, err := scylla.CreateSession(scylla.SessionConfig{
 		// Hosts:          []string{"127.0.0.1"},
-		Hosts:          []string{"scylla-node1"},
+		Hosts:          []string{"scylla-node1", "scylla-node2", "scylla-node3"},
 		ShardAwarePort: 19042,
 		LocalDC:        "DC1",
 		Keyspace:       "chat_db",
@@ -112,8 +139,12 @@ func main() {
 
 	// Postgres
 	ctx := context.Background()
-	dbURL := "postgres://chat_rw:bR4--RqiFyNQGZZiLG4e@pgpool:9999/chat_db"
-	pool, err := postgres.CreatePool(ctx, dbURL, nil)
+	pool, err := postgresql.CreatePool(postgresql.Options{
+		URL:                     "postgres://chat_rw:bR4--RqiFyNQGZZiLG4e@pgpool:9999/chat_db",
+		ApplicationInstanceName: "chat_app",
+		PreparedStatements:      nil,
+		Context:                 ctx,
+	})
 	if err != nil {
 		panic(err)
 	}

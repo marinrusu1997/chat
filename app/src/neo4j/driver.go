@@ -28,16 +28,16 @@ func (a *EcsZerologAdapter) Debugf(name string, id string, msg string, args ...a
 }
 
 type Config struct {
-	logger     zerolog.Logger
-	DbUri      string
-	DbUser     string
-	DbPassword string
+	logger   zerolog.Logger
+	Uri      string
+	Username string
+	Password string
 }
 
 func CreateDriver(driverConfig Config) (neo4j.Driver, error) {
 	driver, err := neo4j.NewDriver(
-		driverConfig.DbUri,
-		neo4j.BasicAuth(driverConfig.DbUser, driverConfig.DbPassword, ""),
+		driverConfig.Uri,
+		neo4j.BasicAuth(driverConfig.Username, driverConfig.Password, ""),
 		func(config *config.Config) {
 			config.Log = &EcsZerologAdapter{logger: driverConfig.logger}
 			config.MaxTransactionRetryTime = 5 * time.Second
@@ -46,12 +46,12 @@ func CreateDriver(driverConfig Config) (neo4j.Driver, error) {
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Neo4j driver with uri '%s': %w", driverConfig.DbUri, err)
+		return nil, fmt.Errorf("failed to create Neo4j driver with uri '%s': %w", driverConfig.Uri, err)
 	}
 
 	err = driver.VerifyConnectivity(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify connectivity to Neo4j database at '%s': %w", driverConfig.DbUri, err)
+		return nil, fmt.Errorf("failed to verify connectivity to Neo4j database at '%s': %w", driverConfig.Uri, err)
 	}
 
 	return driver, nil
