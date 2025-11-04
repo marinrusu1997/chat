@@ -83,19 +83,30 @@ func NewFactory(options Options) (*LoggerFactory, error) {
 				return fmt.Sprintf("\033[90m%s\033[0m", i)
 			},
 			FormatMessage: func(i interface{}) string {
-				return fmt.Sprintf(": %v :", i)
+				return fmt.Sprintf(": %v", i)
 			},
 			FormatFieldName: func(i interface{}) string {
 				return fmt.Sprintf("\033[1m%s\033[0m=", i)
 			},
 			FormatFieldValue: func(i interface{}) string {
-				return fmt.Sprintf("%v", i)
+				switch v := i.(type) {
+				case []byte:
+					if isPrintable(v) {
+						return string(v)
+					}
+					return fmt.Sprintf("%v", v)
+				default:
+					return fmt.Sprintf("%v", v)
+				}
 			},
 			FormatPartValueByName: func(val interface{}, part string) string {
 				switch part {
 				case "logger":
 					s := fmt.Sprintf("\033[4;34m%s\033[0m", val)
 					return fmt.Sprintf("[%-35s]", s)
+				case "fields":
+					// zerolog passes nil here; actual fields are printed separately.
+					return ""
 				default:
 					return fmt.Sprint(val)
 				}
@@ -174,4 +185,14 @@ func (registry *LoggerFactory) getLevel(name string) zerolog.Level {
 	}
 
 	return registry.root.GetLevel()
+}
+
+func isPrintable(b []byte) bool {
+	for _, c := range b {
+		// allow tab/newline and visible ASCII
+		if (c < 32 && c != 9 && c != 10 && c != 13) || c > 126 {
+			return false
+		}
+	}
+	return true
 }

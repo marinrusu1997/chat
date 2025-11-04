@@ -1,5 +1,5 @@
 # Use lightweight image with OpenSSL and Java keytool
-FROM openjdk:17-jdk-slim
+FROM openjdk:17.0.1-jdk-slim
 
 # Install OpenSSL and bash (if not included)
 RUN apt-get update && apt-get install -y openssl bash && rm -rf /var/lib/apt/lists/*

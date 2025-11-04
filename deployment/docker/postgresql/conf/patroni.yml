@@ -34,7 +34,13 @@ bootstrap:
 # ---- Etcd v3 ----
 etcd3:
   hosts:
-    - etcd:2379
+    - etcd-node-1:2379
+    - etcd-node-2:2379
+    - etcd-node-3:2379
+  protocol: https
+  cacert: /etc/patroni/certs/ca/public.crt
+  cert: /etc/patroni/certs/public.crt
+  key: /etc/patroni/certs/private.key
 
 # ---- PostgreSQL ----
 postgresql:

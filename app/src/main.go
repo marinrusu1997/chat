@@ -2,6 +2,7 @@ package main
 
 import (
 	"chat/src/clients/elasticsearch"
+	"chat/src/clients/etcd"
 	"chat/src/clients/neo4j"
 	"chat/src/clients/postgresql"
 	"chat/src/clients/redis"
@@ -62,6 +63,7 @@ func main() {
 			elasticsearch.PingTargetName: storageClients.Elasticsearch,
 			// kafka.PingTargetName:         storageClients.Kafka.Admin, @fixme enable later
 			neo4j.PingTargetName:      storageClients.Neo4j,
+			etcd.PingTargetName:       storageClients.Etcd,
 			postgresql.PingTargetName: storageClients.PostgreSQL,
 			redis.PingTargetName:      storageClients.Redis,
 			scylla.PingTargetName:     storageClients.ScyllaDB,
@@ -81,6 +83,7 @@ func main() {
 			elasticsearch.PingTargetName: storageClients.Elasticsearch,
 			// kafka.PingTargetName:         storageClients.Kafka.Admin, @fixme enable later
 			neo4j.PingTargetName:      storageClients.Neo4j,
+			etcd.PingTargetName:       storageClients.Etcd,
 			postgresql.PingTargetName: storageClients.PostgreSQL,
 			redis.PingTargetName:      storageClients.Redis,
 			scylla.PingTargetName:     storageClients.ScyllaDB,

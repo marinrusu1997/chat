@@ -73,6 +73,8 @@ func NewController(options ControllerOptions) (*Controller, error) {
 
 func (lc *Controller) Start(ctx context.Context) error {
 	var startedLayers [][]string
+	var startedSvcs atomic.Uint32
+	var totalSvcs = len(lc.services)
 
 	for layerIdx, layer := range lc.layers {
 		var (
@@ -98,7 +100,8 @@ func (lc *Controller) Start(ctx context.Context) error {
 				}
 
 				succeeded[svcIdx] = svcName
-				lc.logger.Info().Msgf("Started service '%s'", svcName)
+				startedSvcs.Add(1)
+				lc.logger.Info().Msgf("Started service '%s' (%d/%d)", svcName, startedSvcs.Load(), totalSvcs)
 			}()
 		}
 		wg.Wait()
@@ -109,13 +112,16 @@ func (lc *Controller) Start(ctx context.Context) error {
 			lc.rollbackLayer(rollbackCtx, succeeded)
 			lc.rollback(rollbackCtx, startedLayers)
 
-			return fmt.Errorf("startup failed in layer %d; rollback performed", layerIdx)
+			return fmt.Errorf(
+				"startup failed in layer %d after %d/%d services started; rollback performed",
+				layerIdx, startedSvcs.Load(), totalSvcs,
+			)
 		}
 
 		startedLayers = append(startedLayers, layer)
 	}
 
-	lc.logger.Info().Msg("All services started successfully")
+	lc.logger.Info().Msgf("All %d services started successfully", totalSvcs)
 	return nil
 }
 

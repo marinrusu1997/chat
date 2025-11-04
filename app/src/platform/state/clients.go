@@ -2,6 +2,7 @@ package state
 
 import (
 	"chat/src/clients/elasticsearch"
+	"chat/src/clients/etcd"
 	"chat/src/clients/kafka"
 	"chat/src/clients/neo4j"
 	"chat/src/clients/postgresql"
@@ -28,6 +29,7 @@ type KafkaClients struct {
 }
 
 type StorageClients struct {
+	Etcd          *etcd.Client
 	Elasticsearch *elasticsearch.Client
 	Neo4j         *neo4j.Client
 	PostgreSQL    *postgresql.Client
@@ -113,6 +115,27 @@ func CreateStorageClients(config *config.Config, loggerFactory *logging.LoggerFa
 		Logger:     loggerFactory.Child("client.redis"),
 	})
 
+	// Etcd Client
+	tlsConfig, err = util.CreateTLSConfigWithRootCA(config.Etcd.CACertFilePath)
+	if err != nil {
+		return nil, errorb.Wrapf(err, "failed to create tls config for etcd client")
+	}
+	cert, err = tls.LoadX509KeyPair(config.Etcd.MTLSCertFilePath, config.Etcd.MTLSKeyFilePath)
+	if err != nil {
+		return nil, errorb.Wrapf(err, "failed to load X509 Key Pair for etcd client")
+	}
+	tlsConfig.Certificates = []tls.Certificate{cert}
+	tlsConfig.MinVersion = tls.VersionTLS13
+
+	etcdClient := etcd.NewClient(etcd.ClientOptions{
+		Endpoints: config.Etcd.Endpoints,
+		TLSConfig: tlsConfig,
+		Logger: etcd.ClientLoggerOptions{
+			Client: loggerFactory.Child("client.etcd"),
+			Driver: loggerFactory.Child("client.etcd.driver"),
+		},
+	})
+
 	// ScyllaDB Client
 	scyllaClient := scylla.NewClient(scylla.ClientOptions{
 		Hosts:          config.ScyllaDB.Hosts,
@@ -132,6 +155,7 @@ func CreateStorageClients(config *config.Config, loggerFactory *logging.LoggerFa
 	return &StorageClients{
 		Elasticsearch: elasticsearchClient,
 		Neo4j:         neo4jClient,
+		Etcd:          etcdClient,
 		PostgreSQL:    postgresClient,
 		Redis:         redisClient,
 		ScyllaDB:      scyllaClient,

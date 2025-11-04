@@ -5,10 +5,19 @@ logging:
     "client.neo4j.driver": "warn"
     "client.neo4j.session": "warn"
 
+etcd:
+  endpoints:
+    - "https://etcd-node-1:2379"
+    - "https://etcd-node-2:2379"
+    - "https://etcd-node-3:2379"
+  ca_cert_file_path: "/app/certs/root/ca/public.crt"
+  mtls_cert_file_path: "/app/certs/own/public.crt"
+  mtls_key_file_path: "/app/certs/own/private.key"
+
 postgresql:
   username: "chat_rw"
   password: "bR4--RqiFyNQGZZiLG4e"
-  host: "pgpool"
+  host: "pgpool-node-1"
   port: 9999
   ca_cert_file_path: "/app/certs/root/ca/public.crt"
   dbname: "chat_db"

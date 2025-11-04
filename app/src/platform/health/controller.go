@@ -87,6 +87,7 @@ func NewController(config *ControllerConfig) (*Controller, error) {
 func (c *Controller) Start() {
 	c.pingAndCache(PingDepthDeep)
 	c.scheduler.Start()
+	c.logger.Info().Msgf("Starting watching health of %d dependencies", len(c.dependencies))
 }
 
 func (c *Controller) Stop() {
@@ -94,6 +95,7 @@ func (c *Controller) Stop() {
 	if err != nil {
 		c.logger.Error().Err(err).Msg("failed to shutdown health controller")
 	}
+	c.logger.Info().Msgf("Shutting down health controller")
 }
 
 func (c *Controller) GetCurrentHealth() *ttlcache.Cache[string, PingResult] {

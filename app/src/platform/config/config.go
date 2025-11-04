@@ -9,6 +9,13 @@ type CredentialsConfig struct {
 	Password util.Secret `koanf:"password" validate:"required,min=4,max=64"`
 }
 
+type EtcdConfig struct {
+	Endpoints        []string `koanf:"endpoints" validate:"required,min=1,max=10,unique,dive,required,https_url"`
+	CACertFilePath   string   `koanf:"ca_cert_file_path" validate:"required,filepath"`
+	MTLSCertFilePath string   `koanf:"mtls_cert_file_path" validate:"required,filepath"`
+	MTLSKeyFilePath  string   `koanf:"mtls_key_file_path" validate:"required,filepath"`
+}
+
 type PostgreSQLConfig struct {
 	CredentialsConfig `koanf:",squash"`
 	Host              string            `koanf:"host" validate:"required,hostname|ip"`
@@ -84,6 +91,7 @@ type ApplicationConfig struct {
 
 type Config struct {
 	Application   ApplicationConfig
+	Etcd          EtcdConfig          `koanf:"etcd" validate:"required"`
 	PostgreSQL    PostgreSQLConfig    `koanf:"postgresql" validate:"required"`
 	ScyllaDB      ScyllaDBConfig      `koanf:"scylladb" validate:"required"`
 	Redis         RedisConfig         `koanf:"redis" validate:"required"`
