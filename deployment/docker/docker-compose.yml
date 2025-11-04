@@ -1,6 +1,12 @@
 name: chatapp-cluster
 
 networks:
+  etcd_backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.15.0.0/16
   postgres_backend_network:
     driver: bridge
     ipam:
@@ -51,7 +57,9 @@ networks:
         - subnet: 172.25.0.0/16
 
 volumes:
-  etcd-data:
+  etcd-data-1:
+  etcd-data-2:
+  etcd-data-3:
   pg-data-1:
   pg-data-2:
   pg-data-3:
@@ -79,37 +87,207 @@ volumes:
   grafana-data:
 
 services:
-  etcd:
-    image: gcr.io/etcd-development/etcd:v3.6.4
-    container_name: etcd
-    hostname: etcd
+  etcd-node-1:
+    image: quay.io/coreos/etcd:v3.6.5
+    container_name: etcd-node-1
+    hostname: etcd-node-1
     networks:
-      - postgres_backend_network
+      - etcd_backend_network
     volumes:
-      - etcd-data:/var/log/etcd
+      - etcd-data-1:/var/log/etcd
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/etcd/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/etcd-node-1/private.key:/etc/etcd/certs/private.key:ro
+      - ./cert-generator/output/services/etcd-node-1/public.crt:/etc/etcd/certs/public.crt:ro
     command: >
       /usr/local/bin/etcd
-      --name etcd
+      --name etcd-node-1
       --data-dir /var/log/etcd
-      --listen-client-urls http://0.0.0.0:2379
-      --advertise-client-urls http://etcd:2379
-      --listen-peer-urls http://0.0.0.0:2380
-      --initial-advertise-peer-urls http://etcd:2380
-      --initial-cluster etcd=http://etcd:2380
+      --initial-advertise-peer-urls https://etcd-node-1:2380
+      --listen-peer-urls https://0.0.0.0:2380
+      --listen-client-urls https://0.0.0.0:2379
+      --advertise-client-urls https://etcd-node-1:2379
+      --initial-cluster etcd-node-1=https://etcd-node-1:2380,etcd-node-2=https://etcd-node-2:2380,etcd-node-3=https://etcd-node-3:2380
+      --initial-cluster-token etcd-cluster-1
+      --initial-cluster-state new
+      --client-cert-auth
+      --trusted-ca-file=/etc/etcd/certs/ca/public.crt
+      --cert-file=/etc/etcd/certs/public.crt
+      --key-file=/etc/etcd/certs/private.key
+      --peer-client-cert-auth
+      --peer-trusted-ca-file=/etc/etcd/certs/ca/public.crt
+      --peer-cert-file=/etc/etcd/certs/public.crt
+      --peer-key-file=/etc/etcd/certs/private.key
       --log-level info
       --logger zap
       --log-outputs stderr
+      --heartbeat-interval=100
+      --election-timeout=1000
+      --snapshot-count=200000
+      --quota-backend-bytes=8589934592
+      --max-request-bytes=1572864
+      --max-txn-ops=128
+      --auto-compaction-mode=periodic
+      --auto-compaction-retention=24h
+      --grpc-keepalive-min-time=5s
+      --grpc-keepalive-interval=2s
+      --grpc-keepalive-timeout=6s
+    ulimits:
+      nofile: 262144
+      nproc: 65535
     healthcheck:
-      test: ["CMD", "/usr/local/bin/etcdctl", "--endpoints=http://etcd:2379", "endpoint", "health"]
+      test: [
+        "CMD",
+        "/usr/local/bin/etcdctl",
+        "--endpoints=https://etcd-node-1:2379",
+        "--cacert=/etc/etcd/certs/ca/public.crt",
+        "--cert=/etc/etcd/certs/public.crt",
+        "--key=/etc/etcd/certs/private.key",
+        "endpoint",
+        "health"
+      ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
     restart: "no"
-    mem_limit: 512M
-    cpus: 0.5
+    mem_limit: 1G
+    cpus: 2
 
-  # A pool of identical PostgreSQL nodes managed by Patroni.
+  etcd-node-2:
+    image: quay.io/coreos/etcd:v3.6.5
+    container_name: etcd-node-2
+    hostname: etcd-node-2
+    networks:
+      - etcd_backend_network
+    volumes:
+      - etcd-data-2:/var/log/etcd
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/etcd/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/etcd-node-2/private.key:/etc/etcd/certs/private.key:ro
+      - ./cert-generator/output/services/etcd-node-2/public.crt:/etc/etcd/certs/public.crt:ro
+    command: >
+      /usr/local/bin/etcd
+      --name etcd-node-2
+      --data-dir /var/log/etcd
+      --initial-advertise-peer-urls https://etcd-node-2:2380
+      --listen-peer-urls https://0.0.0.0:2380
+      --listen-client-urls https://0.0.0.0:2379
+      --advertise-client-urls https://etcd-node-2:2379
+      --initial-cluster etcd-node-1=https://etcd-node-1:2380,etcd-node-2=https://etcd-node-2:2380,etcd-node-3=https://etcd-node-3:2380
+      --initial-cluster-token etcd-cluster-1
+      --initial-cluster-state new
+      --client-cert-auth
+      --trusted-ca-file=/etc/etcd/certs/ca/public.crt
+      --cert-file=/etc/etcd/certs/public.crt
+      --key-file=/etc/etcd/certs/private.key
+      --peer-client-cert-auth
+      --peer-trusted-ca-file=/etc/etcd/certs/ca/public.crt
+      --peer-cert-file=/etc/etcd/certs/public.crt
+      --peer-key-file=/etc/etcd/certs/private.key
+      --log-level info
+      --logger zap
+      --log-outputs stderr
+      --heartbeat-interval=100
+      --election-timeout=1000
+      --snapshot-count=200000
+      --quota-backend-bytes=8589934592
+      --max-request-bytes=1572864
+      --max-txn-ops=128
+      --auto-compaction-mode=periodic
+      --auto-compaction-retention=24h
+      --grpc-keepalive-min-time=5s
+      --grpc-keepalive-interval=2s
+      --grpc-keepalive-timeout=6s
+    ulimits:
+      nofile: 262144
+      nproc: 65535
+    healthcheck:
+      test: [
+        "CMD",
+        "/usr/local/bin/etcdctl",
+        "--endpoints=https://etcd-node-2:2379",
+        "--cacert=/etc/etcd/certs/ca/public.crt",
+        "--cert=/etc/etcd/certs/public.crt",
+        "--key=/etc/etcd/certs/private.key",
+        "endpoint",
+        "health"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: "no"
+    mem_limit: 1G
+    cpus: 2
+
+  etcd-node-3:
+    image: quay.io/coreos/etcd:v3.6.5
+    container_name: etcd-node-3
+    hostname: etcd-node-3
+    networks:
+      - etcd_backend_network
+    volumes:
+      - etcd-data-3:/var/log/etcd
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/etcd/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/etcd-node-3/private.key:/etc/etcd/certs/private.key:ro
+      - ./cert-generator/output/services/etcd-node-3/public.crt:/etc/etcd/certs/public.crt:ro
+    command: >
+      /usr/local/bin/etcd
+      --name etcd-node-3
+      --data-dir /var/log/etcd
+      --initial-advertise-peer-urls https://etcd-node-3:2380
+      --listen-peer-urls https://0.0.0.0:2380
+      --listen-client-urls https://0.0.0.0:2379
+      --advertise-client-urls https://etcd-node-3:2379
+      --initial-cluster etcd-node-1=https://etcd-node-1:2380,etcd-node-2=https://etcd-node-2:2380,etcd-node-3=https://etcd-node-3:2380
+      --initial-cluster-token etcd-cluster-1
+      --initial-cluster-state new
+      --client-cert-auth
+      --trusted-ca-file=/etc/etcd/certs/ca/public.crt
+      --cert-file=/etc/etcd/certs/public.crt
+      --key-file=/etc/etcd/certs/private.key
+      --peer-client-cert-auth
+      --peer-trusted-ca-file=/etc/etcd/certs/ca/public.crt
+      --peer-cert-file=/etc/etcd/certs/public.crt
+      --peer-key-file=/etc/etcd/certs/private.key
+      --log-level info
+      --logger zap
+      --log-outputs stderr
+      --heartbeat-interval=100
+      --election-timeout=1000
+      --snapshot-count=200000
+      --quota-backend-bytes=8589934592
+      --max-request-bytes=1572864
+      --max-txn-ops=128
+      --auto-compaction-mode=periodic
+      --auto-compaction-retention=24h
+      --grpc-keepalive-min-time=5s
+      --grpc-keepalive-interval=2s
+      --grpc-keepalive-timeout=6s
+    ulimits:
+      nofile: 262144
+      nproc: 65535
+    healthcheck:
+      test: [
+        "CMD",
+        "/usr/local/bin/etcdctl",
+        "--endpoints=https://etcd-node-3:2379",
+        "--cacert=/etc/etcd/certs/ca/public.crt",
+        "--cert=/etc/etcd/certs/public.crt",
+        "--key=/etc/etcd/certs/private.key",
+        "endpoint",
+        "health"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: "no"
+    mem_limit: 1G
+    cpus: 2
+
   pg-node-1:
     build:
       context: ./postgresql
@@ -117,7 +295,10 @@ services:
     container_name: pg-node-1
     hostname: pg-node-1
     networks:
-      - postgres_backend_network
+      postgres_backend_network:
+        aliases:
+          - pg-node-1-internal # Give this node a specific name on the backend network
+      etcd_backend_network:
     volumes:
       # Configuration
       - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
@@ -143,14 +324,15 @@ services:
       - ./postgresql/secrets/passwords/postgresql/rewinder.pass:/run/secrets/db_user_rewinder.pass
       - ./postgresql/secrets/passwords/patroni/admin.pass:/run/secrets/patroni_user_admin.pass
       - ./pgpool/secrets/pcppass.txt:/tmp/configs/pcppass
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/patroni/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/pg-node-1/private.key:/etc/patroni/certs/private.key:ro
+      - ./cert-generator/output/services/pg-node-1/public.crt:/etc/patroni/certs/public.crt:ro
     environment:
       - PATRONI_NAME=pg-node-1
       - PATRONI_RESTAPI_CONNECT_ADDRESS=pg-node-1:8008
-      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-1:5432
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-1-internal:5432
       - PGPOOL_BACKEND_NODE_ID=0
-    depends_on:
-      etcd:
-        condition: service_healthy
     init: true
     entrypoint: [ "/etc/patroni/entrypoint.sh" ]
     stop_grace_period: 30s
@@ -162,6 +344,13 @@ services:
     restart: "no"
     mem_limit: 6G
     cpus: 12
+    depends_on:
+      etcd-node-1:
+        condition: service_healthy
+      etcd-node-2:
+        condition: service_healthy
+      etcd-node-3:
+        condition: service_healthy
 
   pg-node-2:
     build:
@@ -170,7 +359,10 @@ services:
     container_name: pg-node-2
     hostname: pg-node-2
     networks:
-      - postgres_backend_network
+      postgres_backend_network:
+        aliases:
+          - pg-node-2-internal # Give this node a specific name on the backend network
+      etcd_backend_network:
     volumes:
       # Configuration
       - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
@@ -196,14 +388,15 @@ services:
       - ./postgresql/secrets/passwords/postgresql/rewinder.pass:/run/secrets/db_user_rewinder.pass
       - ./postgresql/secrets/passwords/patroni/admin.pass:/run/secrets/patroni_user_admin.pass
       - ./pgpool/secrets/pcppass.txt:/tmp/configs/pcppass
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/patroni/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/pg-node-2/private.key:/etc/patroni/certs/private.key:ro
+      - ./cert-generator/output/services/pg-node-2/public.crt:/etc/patroni/certs/public.crt:ro
     environment:
       - PATRONI_NAME=pg-node-2
       - PATRONI_RESTAPI_CONNECT_ADDRESS=pg-node-2:8008
-      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-2:5432
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-2-internal:5432
       - PGPOOL_BACKEND_NODE_ID=1
-    depends_on:
-      etcd:
-        condition: service_healthy
     init: true
     entrypoint: [ "/etc/patroni/entrypoint.sh" ]
     stop_grace_period: 30s
@@ -215,6 +408,13 @@ services:
     restart: "no"
     mem_limit: 6G
     cpus: 12
+    depends_on:
+      etcd-node-1:
+        condition: service_healthy
+      etcd-node-2:
+        condition: service_healthy
+      etcd-node-3:
+        condition: service_healthy
 
   pg-node-3:
     build:
@@ -223,7 +423,10 @@ services:
     container_name: pg-node-3
     hostname: pg-node-3
     networks:
-      - postgres_backend_network
+      postgres_backend_network:
+        aliases:
+          - pg-node-3-internal # Give this node a specific name on the backend network
+      etcd_backend_network:
     volumes:
       # Configuration
       - ./postgresql/conf/patroni.yml:/tmp/patroni.yml.template:ro
@@ -249,14 +452,15 @@ services:
       - ./postgresql/secrets/passwords/postgresql/rewinder.pass:/run/secrets/db_user_rewinder.pass
       - ./postgresql/secrets/passwords/patroni/admin.pass:/run/secrets/patroni_user_admin.pass
       - ./pgpool/secrets/pcppass.txt:/tmp/configs/pcppass
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/patroni/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/pg-node-3/private.key:/etc/patroni/certs/private.key:ro
+      - ./cert-generator/output/services/pg-node-3/public.crt:/etc/patroni/certs/public.crt:ro
     environment:
       - PATRONI_NAME=pg-node-3
       - PATRONI_RESTAPI_CONNECT_ADDRESS=pg-node-3:8008
-      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-3:5432
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node-3-internal:5432
       - PGPOOL_BACKEND_NODE_ID=2
-    depends_on:
-      etcd:
-        condition: service_healthy
     init: true
     entrypoint: [ "/etc/patroni/entrypoint.sh" ]
     stop_grace_period: 30s
@@ -268,6 +472,13 @@ services:
     restart: "no"
     mem_limit: 6G
     cpus: 12
+    depends_on:
+      etcd-node-1:
+        condition: service_healthy
+      etcd-node-2:
+        condition: service_healthy
+      etcd-node-3:
+        condition: service_healthy
 
   pgpool:
     build:

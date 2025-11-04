@@ -14,6 +14,12 @@ JAVA_TRUSTSTORE_PASS="${CERT_GEN_JAVA_KEYSTORE_PASSWORD}"
 
 # List of services to generate certificates for
 SERVICES=(
+	"etcd-node-1"
+	"etcd-node-2"
+	"etcd-node-3"
+	"pg-node-1"
+	"pg-node-2"
+	"pg-node-3"
 	"neo4j-node-1"
 	"pgpool"
 	"redis-node-1"
@@ -31,6 +37,7 @@ SERVICES=(
 mkdir -p "$ROOT_CA_DIR"
 ROOT_KEY="$ROOT_CA_DIR/root.key"
 ROOT_CERT="$ROOT_CA_DIR/root.crt"
+ROOT_SRL="$ROOT_CA_DIR/root.srl"
 ROOT_TRUSTSTORE="$ROOT_CA_DIR/root-truststore.jks"
 
 if [ ! -f "$ROOT_KEY" ] || [ ! -f "$ROOT_CERT" ]; then
@@ -109,4 +116,5 @@ done
 
 find "$SSL_DIR" -type f -exec chmod 444 {} +
 find "$SSL_DIR" -type d -exec chmod 555 {} +
+chmod 644 "$ROOT_SRL"
 echo "----> All certificates generated successfully!"
