@@ -26,4 +26,4 @@ scrape_configs:
 
   - job_name: 'scylla'
     static_configs:
-      - targets: ['scylla-node1:9180', 'scylla-node2:9180', 'scylla-node3:9180']
+      - targets: ['scylla-node-1:9180', 'scylla-node-2:9180', 'scylla-node-3:9180']

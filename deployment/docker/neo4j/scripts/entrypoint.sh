@@ -1,33 +1,28 @@
 #!/bin/bash
+set -Eeuo pipefail
 
-# turn on bash's job control
-set -em
+declare -r SRC_DIR="/tmp/certificates"
+declare -r DST_DIR="/var/lib/neo4j/certificates"
 
-# Set ownership to neo4j:neo4j
-chown -R neo4j:neo4j /var/lib/neo4j/certificates/bolt
+if [[ ! -d "$DST_DIR/bolt" ]]; then
+	echo "📂 Copying certificates from $SRC_DIR to $DST_DIR..."
+	mkdir -p "$DST_DIR"
+	cp -a "$SRC_DIR/." "$DST_DIR/"
 
-# Set directory permissions
-chmod 755 /var/lib/neo4j/certificates/bolt
-chmod 755 /var/lib/neo4j/certificates/bolt/trusted
-chmod 755 /var/lib/neo4j/certificates/bolt/revoked
+	echo "👤 Setting ownership to neo4j:neo4j recursively..."
+	chown -R neo4j:neo4j "$DST_DIR"
 
-# Set file permissions
-chmod 644 /var/lib/neo4j/certificates/bolt/public.crt
-chmod 400 /var/lib/neo4j/certificates/bolt/private.key
-chmod 644 /var/lib/neo4j/certificates/bolt/trusted/public.crt
+	echo "🔒 Setting directory permissions to 755..."
+	find "$DST_DIR" -type d -exec chmod 755 {} \;
 
-# Set ownership to neo4j:neo4j
-chown -R neo4j:neo4j /var/lib/neo4j/certificates/https
+	echo "📜 Setting .crt files permissions to 644..."
+	find "$DST_DIR" -type f -name "*.crt" -exec chmod 644 {} \;
 
-# Set directory permissions
-chmod 755 /var/lib/neo4j/certificates/https
-chmod 755 /var/lib/neo4j/certificates/https/trusted
-chmod 755 /var/lib/neo4j/certificates/https/revoked
+	echo "🔑 Setting .key files permissions to 400..."
+	find "$DST_DIR" -type f -name "*.key" -exec chmod 400 {} \;
 
-# Set file permissions
-chmod 644 /var/lib/neo4j/certificates/https/public.crt
-chmod 400 /var/lib/neo4j/certificates/https/private.key
-chmod 644 /var/lib/neo4j/certificates/https/trusted/public.crt
+	echo "✅ Certificates copied and permissions set successfully."
+fi
 
 # Start the primary process and put it in the background
 /startup/docker-entrypoint.sh neo4j &

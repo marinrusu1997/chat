@@ -1,8 +1,8 @@
 package kafka
 
 import (
-	"chat/src/util"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -25,10 +25,7 @@ type ScratchConfig struct {
 }
 
 func newClient(cfg ScratchConfig) (*Client, error) {
-	tlsConfig, err := util.CreateTLSConfigWithRootCA("/app/certs/kafka/ca/public.crt")
-	if err != nil {
-		return nil, err
-	}
+	var tlsConfig *tls.Config
 
 	consumeStartOffset := kgo.NewOffset().AtEnd()
 	consumeResetOffset := kgo.NewOffset().AtEnd()

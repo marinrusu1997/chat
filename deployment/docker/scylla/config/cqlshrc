@@ -1,0 +1,10 @@
+[connection]
+hostname = scylla-node-1
+port = 9142
+ssl = true
+
+[ssl]
+validate = true
+certfile = /etc/scylla/certs/ca/public.crt
+userkey = /etc/scylla/certs/private.key
+usercert = /etc/scylla/certs/public.crt

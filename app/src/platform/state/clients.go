@@ -10,11 +10,8 @@ import (
 	"chat/src/clients/scylla"
 	"chat/src/platform/config"
 	"chat/src/platform/logging"
-	"chat/src/util"
 	"crypto/tls"
 	"fmt"
-
-	"github.com/samber/oops"
 )
 
 type KafkaConsumerClients struct {
@@ -38,98 +35,67 @@ type StorageClients struct {
 	Kafka         KafkaClients
 }
 
-func CreateStorageClients(config *config.Config, loggerFactory *logging.LoggerFactory) (*StorageClients, error) {
-	errorb := oops.In(util.GetFunctionName())
-
+func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Config, loggerFactory *logging.LoggerFactory) (*StorageClients, error) {
 	// Elasticsearch Client
-	tlsConfig, err := util.CreateTLSConfigWithRootCA(config.Elasticsearch.CACertFilePath)
-	if err != nil {
-		return nil, errorb.Wrapf(err, "failed to create tls config for elasticsearch client")
-	}
-
 	elasticsearchClient := elasticsearch.NewClient(elasticsearch.ClientOptions{
+		Addresses:    config.Elasticsearch.Addresses,
+		TLSConfig:    tlsConfig[elasticsearch.PingTargetName],
+		Username:     config.Elasticsearch.Username,
+		Password:     string(config.Elasticsearch.Password),
+		ShouldLogReq: config.Elasticsearch.ShouldLogReq,
+		ShouldLogRes: config.Elasticsearch.ShouldLogRes,
 		Logger: elasticsearch.ClientLoggerOptions{
 			Client: loggerFactory.Child("client.elasticsearch"),
 			Driver: loggerFactory.Child("client.elasticsearch.driver"),
 		},
-		TLSConfig:    tlsConfig,
-		Username:     config.Elasticsearch.Username,
-		Password:     string(config.Elasticsearch.Password),
-		Addresses:    config.Elasticsearch.Addresses,
-		ShouldLogReq: config.Elasticsearch.ShouldLogReq,
-		ShouldLogRes: config.Elasticsearch.ShouldLogRes,
 	})
 
 	// Neo4j Client
-	tlsConfig, err = util.CreateTLSConfigWithRootCA(config.Neo4j.CACertFilePath)
-	if err != nil {
-		return nil, errorb.Wrapf(err, "failed to create tls config for neo4j client")
-	}
-
 	neo4jClient := neo4j.NewClient(neo4j.ClientOptions{
+		Uri:          config.Neo4j.Uri,
+		TlsConfig:    tlsConfig[neo4j.PingTargetName],
+		Username:     config.Neo4j.Username,
+		Password:     string(config.Neo4j.Password),
+		DatabaseName: config.Neo4j.DatabaseName,
 		Logger: neo4j.ClientLoggerOptions{
 			Client:  loggerFactory.Child("client.neo4j"),
 			Driver:  loggerFactory.Child("client.neo4j.driver"),
 			Session: loggerFactory.Child("client.neo4j.session"),
 		},
-		Uri:          config.Neo4j.Uri,
-		TlsConfig:    tlsConfig,
-		Username:     config.Neo4j.Username,
-		Password:     string(config.Neo4j.Password),
-		DatabaseName: config.Neo4j.DatabaseName,
 	})
 
 	// PostgreSQL Client
 	postgresClient, err := postgresql.NewClient(postgresql.ClientOptions{
-		URL: fmt.Sprintf("user=%s password=%s host=%s port=%d dbname=%s sslrootcert=%s sslmode=verify-full",
+		URL: fmt.Sprintf("user=%s password=%s host=%s port=%d dbname=%s",
 			config.PostgreSQL.Username,
 			string(config.PostgreSQL.Password),
 			config.PostgreSQL.Host,
 			config.PostgreSQL.Port,
 			config.PostgreSQL.DbName,
-			config.PostgreSQL.CACertFilePath,
 		),
+		TLSConfig:               tlsConfig[postgresql.PingTargetName],
 		ApplicationInstanceName: config.Application.InstanceName,
 		PreparedStatements:      nil,
 		Logger:                  loggerFactory.Child("client.postgresql"),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create postgresql client: %v", err)
+	}
 
 	// Redis Client
-	tlsConfig, err = util.CreateTLSConfigWithRootCA(config.Redis.CACertFilePath)
-	if err != nil {
-		return nil, errorb.Wrapf(err, "failed to create tls config for redis client")
-	}
-	cert, err := tls.LoadX509KeyPair(config.Redis.MTLSCertFilePath, config.Redis.MTLSKeyFilePath)
-	if err != nil {
-		return nil, errorb.Wrapf(err, "failed to load X509 Key Pair for redis client")
-	}
-	tlsConfig.Certificates = []tls.Certificate{cert}
-	tlsConfig.MinVersion = tls.VersionTLS13
-
 	redisClient := redis.NewClient(redis.ClientOptions{
 		Addresses:  config.Redis.Addresses,
-		TLSConfig:  tlsConfig,
-		ClientName: config.Application.InstanceName,
+		TLSConfig:  tlsConfig[redis.PingTargetName],
 		Username:   config.Redis.Username,
 		Password:   string(config.Redis.Password),
+		ClientName: config.Application.InstanceName,
 		Logger:     loggerFactory.Child("client.redis"),
 	})
 
 	// Etcd Client
-	tlsConfig, err = util.CreateTLSConfigWithRootCA(config.Etcd.CACertFilePath)
-	if err != nil {
-		return nil, errorb.Wrapf(err, "failed to create tls config for etcd client")
-	}
-	cert, err = tls.LoadX509KeyPair(config.Etcd.MTLSCertFilePath, config.Etcd.MTLSKeyFilePath)
-	if err != nil {
-		return nil, errorb.Wrapf(err, "failed to load X509 Key Pair for etcd client")
-	}
-	tlsConfig.Certificates = []tls.Certificate{cert}
-	tlsConfig.MinVersion = tls.VersionTLS13
-
 	etcdClient := etcd.NewClient(etcd.ClientOptions{
 		Endpoints: config.Etcd.Endpoints,
-		TLSConfig: tlsConfig,
+		TLSConfig: tlsConfig[etcd.PingTargetName],
 		Logger: etcd.ClientLoggerOptions{
 			Client: loggerFactory.Child("client.etcd"),
 			Driver: loggerFactory.Child("client.etcd.driver"),
@@ -140,10 +106,11 @@ func CreateStorageClients(config *config.Config, loggerFactory *logging.LoggerFa
 	scyllaClient := scylla.NewClient(scylla.ClientOptions{
 		Hosts:          config.ScyllaDB.Hosts,
 		ShardAwarePort: config.ScyllaDB.ShardAwarePort,
+		TLSConfig:      tlsConfig[scylla.PingTargetName],
 		LocalDC:        config.ScyllaDB.LocalDC,
-		Keyspace:       config.ScyllaDB.Keyspace,
 		Username:       config.ScyllaDB.Username,
 		Password:       string(config.ScyllaDB.Password),
+		Keyspace:       config.ScyllaDB.Keyspace,
 		Logger: scylla.ClientLoggerOptions{
 			Client: loggerFactory.Child("client.scylla"),
 			Driver: loggerFactory.Child("client.scylla.driver"),

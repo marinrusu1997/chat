@@ -1,3 +1,8 @@
+application:
+  truststore: "/etc/chat/certs/app/trusted/public.crt"
+  certificate: "/etc/chat/certs/app/public.crt"
+  key: "/etc/chat/certs/app/private.key"
+
 logging:
   root_level: "info"
   pretty_print: true
@@ -10,24 +15,20 @@ etcd:
     - "https://etcd-node-1:2379"
     - "https://etcd-node-2:2379"
     - "https://etcd-node-3:2379"
-  ca_cert_file_path: "/app/certs/root/ca/public.crt"
-  mtls_cert_file_path: "/app/certs/own/public.crt"
-  mtls_key_file_path: "/app/certs/own/private.key"
 
 postgresql:
   username: "chat_rw"
   password: "bR4--RqiFyNQGZZiLG4e"
   host: "pgpool-node-1"
   port: 9999
-  ca_cert_file_path: "/app/certs/root/ca/public.crt"
   dbname: "chat_db"
 
 scylladb:
   hosts:
-    - "scylla-node1"
-    - "scylla-node2"
-    - "scylla-node3"
-  shard_aware_port: 19042
+    - "scylla-node-1"
+    - "scylla-node-2"
+    - "scylla-node-3"
+  shard_aware_port: 19142
   local_dc: "DC1"
   keyspace: "chat_db"
   username: "chat_rw"
@@ -43,32 +44,28 @@ redis:
     - "redis-node-6:6379"
   username: "chat_rw"
   password: "Ch@t-@pp-Us€r-P@ssw0rd-!n-Pr0d"
-  ca_cert_file_path: "/app/certs/root/ca/public.crt"
-  mtls_cert_file_path: "/app/certs/own/public.crt"
-  mtls_key_file_path: "/app/certs/own/private.key"
+
+neo4j:
+  uri: "neo4j+s://neo4j-node-1:7687"
+  username: "neo4j"
+  password: "xL2_RIfpD4q8nRoj4vsg"
+  database_name: "chatdb"
 
 elasticsearch:
   addresses:
     - "https://es-coordinating-1:9200"
-  ca_cert_file_path: "/app/certs/es/ca/ca.crt"
+  truststore: "/etc/chat/certs/elasticsearch/trusted/ca.crt"
   username: "chat_app_user"
   password: "xG0-UU5v1dDoojVpWRXN"
   should_log_req: false
   should_log_res: false
-
-neo4j:
-  uri: "neo4j+s://neo4j-node-1:7687"
-  ca_cert_file_path: "/app/certs/root/ca/public.crt"
-  username: "neo4j"
-  password: "xL2_RIfpD4q8nRoj4vsg"
-  database_name: "chatdb"
 
 kafka:
   seed_brokers:
     - "kafka1:9092"
     - "kafka2:9092"
     - "kafka3:9092"
-  ca_cert_file_path: "/app/certs/kafka/ca/public.crt"
+  truststore: "/etc/chat/certs/kafka/trusted/public.crt"
   users:
     admin:
       username: "chat_admin"

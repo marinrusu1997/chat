@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"time"
@@ -30,6 +31,7 @@ type ClientOptions struct {
 	URL                     string
 	ApplicationInstanceName string
 	PreparedStatements      *map[string]string
+	TLSConfig               *tls.Config
 	Logger                  zerolog.Logger
 }
 
@@ -49,6 +51,7 @@ func NewClient(options ClientOptions) (*Client, error) {
 	config.MaxConnLifetimeJitter = 5 * time.Minute
 	config.MaxConnIdleTime = 10 * time.Minute
 	config.ConnConfig.ConnectTimeout = 5 * time.Second
+	config.ConnConfig.TLSConfig = options.TLSConfig
 	config.ConnConfig.RuntimeParams["application_name"] = options.ApplicationInstanceName
 	config.ConnConfig.RuntimeParams["timezone"] = "UTC"
 	config.ConnConfig.RuntimeParams["datestyle"] = "ISO"

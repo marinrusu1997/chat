@@ -3,6 +3,7 @@ package main
 import (
 	"chat/src/clients/elasticsearch"
 	"chat/src/clients/etcd"
+	"chat/src/clients/kafka"
 	"chat/src/clients/neo4j"
 	"chat/src/clients/postgresql"
 	"chat/src/clients/redis"
@@ -11,6 +12,7 @@ import (
 	"chat/src/platform/health"
 	"chat/src/platform/lifecycle"
 	"chat/src/platform/logging"
+	"chat/src/platform/security"
 	"chat/src/platform/state"
 	"context"
 	"fmt"
@@ -25,7 +27,7 @@ import (
 
 func main() {
 	cfg, err := config.Load(config.LoadConfigOptions{
-		YamlFilePaths: []string{"/app/config/config.yaml"},
+		YamlFilePaths: []string{"/etc/chat/config.yaml"},
 		EnvVarPrefix:  "CHAT_APP_",
 	})
 	if err != nil {
@@ -53,7 +55,76 @@ func main() {
 	}
 	logger.Info().Msgf("Using config:\n%s", string(cfgBytes))
 
-	storageClients, err := state.CreateStorageClients(cfg, loggerFactory)
+	// 4. Load TLS configs
+	tlsConfigs, err := security.LoadTLSConfigs(&security.TLSConfigSources{
+		Global: security.TLSMaterialPaths{
+			Truststore:  string(cfg.Application.Truststore),
+			Certificate: string(cfg.Application.Certificate),
+			Key:         string(cfg.Application.Key),
+		},
+		Services: map[string]security.TLSServiceOptions{
+			elasticsearch.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore: string(cfg.Elasticsearch.Truststore),
+				},
+			},
+			kafka.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore: string(cfg.Kafka.Truststore),
+				},
+			},
+			neo4j.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore:  string(cfg.Neo4j.Truststore),
+					Certificate: string(cfg.Neo4j.Certificate),
+					Key:         string(cfg.Neo4j.Key),
+				},
+				Policy: security.TLSPolicy{
+					RequireMutualTLS: true,
+				},
+			},
+			etcd.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore:  string(cfg.Etcd.Truststore),
+					Certificate: string(cfg.Etcd.Certificate),
+					Key:         string(cfg.Etcd.Key),
+				},
+				Policy: security.TLSPolicy{
+					RequireMutualTLS: true,
+				},
+			},
+			postgresql.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore: string(cfg.PostgreSQL.Truststore),
+				},
+			},
+			redis.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore:  string(cfg.Redis.Truststore),
+					Certificate: string(cfg.Redis.Certificate),
+					Key:         string(cfg.Redis.Key),
+				},
+				Policy: security.TLSPolicy{
+					RequireMutualTLS: true,
+				},
+			},
+			scylla.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore:  string(cfg.ScyllaDB.Truststore),
+					Certificate: string(cfg.ScyllaDB.Certificate),
+					Key:         string(cfg.ScyllaDB.Key),
+				},
+				Policy: security.TLSPolicy{
+					RequireMutualTLS: true,
+				},
+			},
+		},
+	})
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to load tls configs")
+	}
+
+	storageClients, err := state.CreateStorageClients(cfg, tlsConfigs.Services, loggerFactory)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create storage clients")
 	}

@@ -2,6 +2,7 @@ package scylla
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ type ClientLoggerOptions struct {
 type ClientOptions struct {
 	Hosts             []string
 	ShardAwarePort    uint16
+	TLSConfig         *tls.Config
 	LocalDC           string
 	Keyspace          string
 	Username          string
@@ -58,6 +60,13 @@ func NewClient(options ClientOptions) *Client {
 
 	// Set up shard aware port
 	clusterConfig.Port = int(options.ShardAwarePort)
+
+	// Set up SSL/TLS options.
+	options.TLSConfig.InsecureSkipVerify = true // @fixme get rid of this
+	clusterConfig.SslOpts = &gocql.SslOptions{
+		Config:                 options.TLSConfig,
+		EnableHostVerification: false, // @fixme get rid of this
+	}
 
 	// Set the default consistency level for queries.
 	if options.LocalDC != "" {
@@ -128,25 +137,23 @@ type zerologAdapter struct {
 }
 
 func (a *zerologAdapter) Print(v ...interface{}) {
-	a.detectLevel(v).Msg(fmt.Sprint(v...))
+	if len(v) > 0 {
+		a.detectLevel(v[0]).Msg(fmt.Sprint(v...))
+	}
 }
 
 func (a *zerologAdapter) Printf(format string, v ...interface{}) {
-	a.detectLevel(v).Msgf(format, v...)
+	a.detectLevel(format).Msgf(strings.TrimSpace(format), v...)
 }
 
 func (a *zerologAdapter) Println(v ...interface{}) {
 	a.Print(v...)
 }
 
-func (a *zerologAdapter) detectLevel(v []interface{}) *zerolog.Event {
-	if len(v) == 0 {
-		return a.logger.Info()
-	}
-
-	first, ok := v[0].(string)
+func (a *zerologAdapter) detectLevel(v interface{}) *zerolog.Event {
+	first, ok := v.(string)
 	if !ok {
-		first = fmt.Sprint(v[0])
+		first = fmt.Sprint(v)
 	}
 
 	switch {

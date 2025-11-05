@@ -25,7 +25,7 @@ networks:
       driver: default
       config:
         - subnet: 172.20.0.0/16
-  frontend_network:
+  chat_app_network:
     driver: bridge
     ipam:
       driver: default
@@ -66,18 +66,20 @@ volumes:
   scylla-data-1:
   scylla-data-2:
   scylla-data-3:
+  scylla-setup-data:
   redis-data-1:
   redis-data-2:
   redis-data-3:
   redis-data-4:
   redis-data-5:
   redis-data-6:
+  es-setup-data-shared:
+  es-setup-data-internal:
   es-master-data-1:
   es-hot-data-1:
   es-warm-data-1:
-  es-certs: # Shared Elasticsearch SSL certificates
   es-kibana-data:
-  filebeat-data:
+  es-filebeat-data:
   neo4j-data-1:
   kafka-data-1:
   kafka-data-2:
@@ -85,6 +87,13 @@ volumes:
   kafka_secrets:
   prometheus-data:
   grafana-data:
+
+x-logging: &default-logging
+  driver: local
+  options:
+    max-size: "5m"
+    max-file: "2"
+    compress: "true"
 
 x-etcd-dependencies: &etcd-dependencies
   etcd-node-1:
@@ -102,11 +111,52 @@ x-postgres-dependencies: &postgres-dependencies
   pg-node-3:
     condition: service_healthy
 
+x-scylla-dependencies: &scylla-dependencies
+  scylla-node-1:
+    condition: service_healthy
+  scylla-node-2:
+    condition: service_healthy
+  scylla-node-3:
+    condition: service_healthy
+
+x-redis-dependencies: &redis-dependencies
+  redis-node-1:
+    condition: service_healthy
+  redis-node-2:
+    condition: service_healthy
+  redis-node-3:
+    condition: service_healthy
+  redis-node-4:
+    condition: service_healthy
+  redis-node-5:
+    condition: service_healthy
+  redis-node-6:
+    condition: service_healthy
+
+x-elasticsearch-dependencies: &elasticsearch-dependencies
+  es-master-1:
+    condition: service_healthy
+  es-data-hot-1:
+    condition: service_healthy
+  es-data-warm-1:
+    condition: service_healthy
+  es-coordinating-1:
+    condition: service_healthy
+
+x-kafka-dependencies: &kafka-dependencies
+  kafka1:
+    condition: service_healthy
+  kafka2:
+    condition: service_healthy
+  kafka3:
+    condition: service_healthy
+
 services:
   etcd-node-1:
     image: quay.io/coreos/etcd:v3.6.5
     container_name: etcd-node-1
     hostname: etcd-node-1
+    logging: *default-logging
     networks:
       - etcd_backend_network
     volumes:
@@ -174,6 +224,7 @@ services:
     image: quay.io/coreos/etcd:v3.6.5
     container_name: etcd-node-2
     hostname: etcd-node-2
+    logging: *default-logging
     networks:
       - etcd_backend_network
     volumes:
@@ -241,6 +292,7 @@ services:
     image: quay.io/coreos/etcd:v3.6.5
     container_name: etcd-node-3
     hostname: etcd-node-3
+    logging: *default-logging
     networks:
       - etcd_backend_network
     volumes:
@@ -310,6 +362,7 @@ services:
       dockerfile: Dockerfile
     container_name: pg-node-1
     hostname: pg-node-1
+    logging: *default-logging
     networks:
       postgres_backend_network:
         aliases:
@@ -368,6 +421,7 @@ services:
       dockerfile: Dockerfile
     container_name: pg-node-2
     hostname: pg-node-2
+    logging: *default-logging
     networks:
       postgres_backend_network:
         aliases:
@@ -426,6 +480,7 @@ services:
       dockerfile: Dockerfile
     container_name: pg-node-3
     hostname: pg-node-3
+    logging: *default-logging
     networks:
       postgres_backend_network:
         aliases:
@@ -484,6 +539,7 @@ services:
       dockerfile: Dockerfile
     container_name: pgpool-node-1
     hostname: pgpool-node-1
+    logging: *default-logging
     networks:
       - postgres_backend_network
     volumes:
@@ -531,6 +587,7 @@ services:
       dockerfile: Dockerfile
     container_name: pg-exporter
     hostname: pg-exporter
+    logging: *default-logging
     networks:
       - postgres_backend_network
       - monitoring_network
@@ -552,25 +609,34 @@ services:
       pgpool-node-1:
         condition: service_healthy
 
-  scylla-node1:
-    image: scylladb/scylla:2025.3
-    container_name: scylla-node1
-    hostname: scylla-node1
+  scylla-node-1:
+    image: scylladb/scylla:2025.3.3
+    container_name: scylla-node-1
+    hostname: scylla-node-1
+    logging: *default-logging
     networks:
-      scylla_backend_network:
-        aliases:
-          - scylla-node1-internal # Give this node a specific name on the backend network
-      frontend_network:
+      - scylla_backend_network
     volumes:
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/scylla/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/scylla-node-1/private.key:/etc/scylla/certs/private.key:ro
+      - ./cert-generator/output/services/scylla-node-1/public.crt:/etc/scylla/certs/public.crt:ro
+      # Config
       - ./scylla/config/rack1.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      # Scripts
+      - ./scylla/scripts/healthcheck.sh:/usr/local/bin/scylla/healthcheck.sh:ro
+      # Data
       - scylla-data-1:/var/lib/scylla
-    security_opt:
-      - "seccomp:unconfined"
     command: >
-      --seeds=scylla-node1-internal
-      --listen-address=scylla-node1-internal
-      --rpc-address=scylla-node1
+      --seeds=scylla-node-1
+      --listen-address=scylla-node-1
+      --rpc-address=scylla-node-1
+      --storage-port=7000
+      --ssl-storage-port=7001
+      --native-transport-port=9042
       --native-shard-aware-transport-port=19042
+      --native-transport-port-ssl=9142
+      --native-shard-aware-transport-port-ssl=19142
       --smp 2 
       --memory 2200M 
       --developer-mode 1 
@@ -595,8 +661,21 @@ services:
       --experimental-features=keyspace-storage-options
       --experimental-features=udf
       --experimental-features=views-with-tablets
+      --server-encryption-options=internode_encryption=all
+      --server-encryption-options=certificate=/etc/scylla/certs/public.crt
+      --server-encryption-options=keyfile=/etc/scylla/certs/private.key
+      --server-encryption-options=truststore=/etc/scylla/certs/ca/public.crt
+      --server-encryption-options=priority_string=SECURE128:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2
+      --server-encryption-options=require_client_auth=true
+      --client-encryption-options=enabled=true
+      --client-encryption-options=certificate=/etc/scylla/certs/public.crt
+      --client-encryption-options=keyfile=/etc/scylla/certs/private.key
+      --client-encryption-options=truststore=/etc/scylla/certs/ca/public.crt
+      --client-encryption-options=priority_string=SECURE128:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2
+      --client-encryption-options=require_client_auth=true
+      --client-encryption-options=enable_session_tickets=true
     healthcheck:
-      test: [ "CMD-SHELL", "nodetool status && sleep 10" ]
+      test: [ "CMD-SHELL", "/bin/bash /usr/local/bin/scylla/healthcheck.sh && sleep 10" ]
       interval: 30s
       timeout: 15s
       retries: 5
@@ -606,147 +685,211 @@ services:
     cpus: 2
     cap_add:
       - SYS_ADMIN
-
-  scylla-node2:
-    image: scylladb/scylla:2025.3
-    container_name: scylla-node2
-    hostname: scylla-node2
-    networks:
-      scylla_backend_network:
-        aliases:
-          - scylla-node2-internal
-      frontend_network:
-    volumes:
-      - ./scylla/config/rack2.properties:/etc/scylla/cassandra-rackdc.properties:ro
-      - scylla-data-2:/var/lib/scylla
     security_opt:
       - "seccomp:unconfined"
-    command: >
-      --seeds=scylla-node1-internal
-      --listen-address=scylla-node2-internal
-      --rpc-address=scylla-node2
-      --native-shard-aware-transport-port=19042
-      --smp 2 
-      --memory 2200M 
-      --developer-mode 1 
-      --reactor-backend=io_uring 
-      --cluster-name=ScyllaChatCluster 
-      --endpoint-snitch=GossipingPropertyFileSnitch 
-      --write-request-timeout-in-ms=3000 
-      --read-request-timeout-in-ms=7000 
-      --range-request-timeout-in-ms=12000 
-      --num-tokens=256 
-      --auto-bootstrap=1
-      --commitlog-sync=batch
-      --commitlog-sync-batch-window-in-ms=2
-      --compaction-large-partition-warning-threshold-mb=1000
-      --tombstone-warn-threshold=5000
-      --restrict-twcs-without-default-ttl=true
-      --authenticator=PasswordAuthenticator
-      --authorizer=CassandraAuthorizer
-      --enable-user-defined-functions=1
-      --experimental-features=alternator-streams
-      --experimental-features=broadcast-tables
-      --experimental-features=keyspace-storage-options
-      --experimental-features=udf
-      --experimental-features=views-with-tablets
-    healthcheck:
-      test: [ "CMD-SHELL", "nodetool status && sleep 5" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 15s
-    restart: "no"
-    depends_on:
-      scylla-node1:
-        condition: service_healthy
-    mem_limit: 4G
-    cpus: 2
-    cap_add:
-      - SYS_ADMIN
 
-  scylla-node3:
-    image: scylladb/scylla:2025.3
-    container_name: scylla-node3
-    hostname: scylla-node3
-    networks:
-      scylla_backend_network:
-        aliases:
-          - scylla-node3-internal
-      frontend_network:
-    volumes:
-      - ./scylla/config/rack3.properties:/etc/scylla/cassandra-rackdc.properties:ro
-      - scylla-data-3:/var/lib/scylla
-    security_opt:
-      - "seccomp:unconfined"
-    command: >
-      --seeds=scylla-node1-internal
-      --listen-address=scylla-node3-internal
-      --rpc-address=scylla-node3
-      --native-shard-aware-transport-port=19042
-      --smp 2 
-      --memory 2200M 
-      --developer-mode 1 
-      --reactor-backend=io_uring 
-      --cluster-name=ScyllaChatCluster 
-      --endpoint-snitch=GossipingPropertyFileSnitch 
-      --write-request-timeout-in-ms=3000 
-      --read-request-timeout-in-ms=7000 
-      --range-request-timeout-in-ms=12000 
-      --num-tokens=256 
-      --auto-bootstrap=1
-      --commitlog-sync=batch
-      --commitlog-sync-batch-window-in-ms=2
-      --compaction-large-partition-warning-threshold-mb=1000
-      --tombstone-warn-threshold=5000
-      --restrict-twcs-without-default-ttl=true
-      --authenticator=PasswordAuthenticator
-      --authorizer=CassandraAuthorizer
-      --enable-user-defined-functions=1
-      --experimental-features=alternator-streams
-      --experimental-features=broadcast-tables
-      --experimental-features=keyspace-storage-options
-      --experimental-features=udf
-      --experimental-features=views-with-tablets
-    healthcheck:
-      test: [ "CMD-SHELL", "nodetool status && sleep 5" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 15s
-    restart: "no"
-    depends_on:
-      scylla-node2:
-        condition: service_healthy
-    mem_limit: 4G
-    cpus: 2
-    cap_add:
-      - SYS_ADMIN
-
-  scylla-maintainer:
-    image: scylladb/scylla:2025.3
-    container_name: scylla-maintainer
+  scylla-node-2:
+    image: scylladb/scylla:2025.3.3
+    container_name: scylla-node-2
+    hostname: scylla-node-2
+    logging: *default-logging
     networks:
       - scylla_backend_network
     volumes:
-      - ./scylla/scripts/init.cql:/tmp/init.cql:ro
-      - ./scylla/scripts/init.sh:/tmp/init.sh:ro
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/scylla/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/scylla-node-2/private.key:/etc/scylla/certs/private.key:ro
+      - ./cert-generator/output/services/scylla-node-2/public.crt:/etc/scylla/certs/public.crt:ro
+      # Config
+      - ./scylla/config/rack2.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      # Scripts
+      - ./scylla/scripts/healthcheck.sh:/usr/local/bin/scylla/healthcheck.sh:ro
+      # Data
+      - scylla-data-2:/var/lib/scylla
+    command: >
+      --seeds=scylla-node-1
+      --listen-address=scylla-node-2
+      --rpc-address=scylla-node-2
+      --storage-port=7000
+      --ssl-storage-port=7001
+      --native-transport-port=9042
+      --native-shard-aware-transport-port=19042
+      --native-transport-port-ssl=9142
+      --native-shard-aware-transport-port-ssl=19142
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+      --server-encryption-options=internode_encryption=all
+      --server-encryption-options=certificate=/etc/scylla/certs/public.crt
+      --server-encryption-options=keyfile=/etc/scylla/certs/private.key
+      --server-encryption-options=truststore=/etc/scylla/certs/ca/public.crt
+      --server-encryption-options=priority_string=SECURE128:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2
+      --server-encryption-options=require_client_auth=true
+      --client-encryption-options=enabled=true
+      --client-encryption-options=certificate=/etc/scylla/certs/public.crt
+      --client-encryption-options=keyfile=/etc/scylla/certs/private.key
+      --client-encryption-options=truststore=/etc/scylla/certs/ca/public.crt
+      --client-encryption-options=priority_string=SECURE128:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2
+      --client-encryption-options=require_client_auth=true
+      --client-encryption-options=enable_session_tickets=true
+    healthcheck:
+      test: [ "CMD-SHELL", "/bin/bash /usr/local/bin/scylla/healthcheck.sh && sleep 5" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: "no"
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - "seccomp:unconfined"
+    depends_on:
+      scylla-node-1:
+        condition: service_healthy
+
+  scylla-node-3:
+    image: scylladb/scylla:2025.3.3
+    container_name: scylla-node-3
+    hostname: scylla-node-3
+    logging: *default-logging
+    networks:
+      - scylla_backend_network
+    volumes:
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/scylla/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/scylla-node-3/private.key:/etc/scylla/certs/private.key:ro
+      - ./cert-generator/output/services/scylla-node-3/public.crt:/etc/scylla/certs/public.crt:ro
+      # Config
+      - ./scylla/config/rack3.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      # Scripts
+      - ./scylla/scripts/healthcheck.sh:/usr/local/bin/scylla/healthcheck.sh:ro
+      # Data
+      - scylla-data-3:/var/lib/scylla
+    command: >
+      --seeds=scylla-node-1
+      --listen-address=scylla-node-3
+      --rpc-address=scylla-node-3
+      --storage-port=7000
+      --ssl-storage-port=7001
+      --native-transport-port=9042
+      --native-shard-aware-transport-port=19042
+      --native-transport-port-ssl=9142
+      --native-shard-aware-transport-port-ssl=19142
+      --smp 2 
+      --memory 2200M 
+      --developer-mode 1 
+      --reactor-backend=io_uring 
+      --cluster-name=ScyllaChatCluster 
+      --endpoint-snitch=GossipingPropertyFileSnitch 
+      --write-request-timeout-in-ms=3000 
+      --read-request-timeout-in-ms=7000 
+      --range-request-timeout-in-ms=12000 
+      --num-tokens=256 
+      --auto-bootstrap=1
+      --commitlog-sync=batch
+      --commitlog-sync-batch-window-in-ms=2
+      --compaction-large-partition-warning-threshold-mb=1000
+      --tombstone-warn-threshold=5000
+      --restrict-twcs-without-default-ttl=true
+      --authenticator=PasswordAuthenticator
+      --authorizer=CassandraAuthorizer
+      --enable-user-defined-functions=1
+      --experimental-features=alternator-streams
+      --experimental-features=broadcast-tables
+      --experimental-features=keyspace-storage-options
+      --experimental-features=udf
+      --experimental-features=views-with-tablets
+      --server-encryption-options=internode_encryption=all
+      --server-encryption-options=certificate=/etc/scylla/certs/public.crt
+      --server-encryption-options=keyfile=/etc/scylla/certs/private.key
+      --server-encryption-options=truststore=/etc/scylla/certs/ca/public.crt
+      --server-encryption-options=priority_string=SECURE128:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2
+      --server-encryption-options=require_client_auth=true
+      --client-encryption-options=enabled=true
+      --client-encryption-options=certificate=/etc/scylla/certs/public.crt
+      --client-encryption-options=keyfile=/etc/scylla/certs/private.key
+      --client-encryption-options=truststore=/etc/scylla/certs/ca/public.crt
+      --client-encryption-options=priority_string=SECURE128:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2
+      --client-encryption-options=require_client_auth=true
+      --client-encryption-options=enable_session_tickets=true
+    healthcheck:
+      test: [ "CMD-SHELL", "/bin/bash /usr/local/bin/scylla/healthcheck.sh && sleep 5" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: "no"
+    mem_limit: 4G
+    cpus: 2
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - "seccomp:unconfined"
+    depends_on:
+      scylla-node-2:
+        condition: service_healthy
+
+  scylla-setup:
+    image: scylladb/scylla:2025.3.3
+    container_name: scylla-setup
+    hostname: scylla-setup
+    logging: *default-logging
+    networks:
+      - scylla_backend_network
+    volumes:
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/scylla/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/scylla-setup/private.key:/etc/scylla/certs/private.key:ro
+      - ./cert-generator/output/services/scylla-setup/public.crt:/etc/scylla/certs/public.crt:ro
+      # Scripts
+      - ./scylla/scripts/init.cql:/usr/local/bin/scylla/init.cql:ro
+      - ./scylla/scripts/init.sh:/usr/local/bin/scylla/init.sh:ro
+      # Config
+      - ./scylla/config/cqlshrc:/etc/scylla/client/cqlshrc:ro
+      # Data
+      - scylla-setup-data:/var/lib/scylla
     env_file:
       - ./scylla/secrets/.env.secrets
-    entrypoint: sh /tmp/init.sh
+    entrypoint: [ "/bin/bash", "/usr/local/bin/scylla/init.sh" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "[ -f /var/lib/scylla/locks/initialization.lock ]" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     restart: no
-    depends_on:
-      scylla-node1:
-        condition: service_healthy
-      scylla-node2:
-        condition: service_healthy
-      scylla-node3:
-        condition: service_healthy
+    mem_limit: 200M
+    cpus: 1
+    depends_on: *scylla-dependencies
 
   redis-node-1:
     image: redis:8.2.1
     container_name: redis-node-1
     hostname: redis-node-1
+    logging: *default-logging
     networks:
       - redis_backend_network
     volumes:
@@ -786,6 +929,7 @@ services:
     image: redis:8.2.1
     container_name: redis-node-2
     hostname: redis-node-2
+    logging: *default-logging
     networks:
       - redis_backend_network
     volumes:
@@ -824,6 +968,7 @@ services:
     image: redis:8.2.1
     container_name: redis-node-3
     hostname: redis-node-3
+    logging: *default-logging
     networks:
       - redis_backend_network
     volumes:
@@ -862,6 +1007,7 @@ services:
     image: redis:8.2.1
     container_name: redis-node-4
     hostname: redis-node-4
+    logging: *default-logging
     networks:
       - redis_backend_network
     volumes:
@@ -900,6 +1046,7 @@ services:
     image: redis:8.2.1
     container_name: redis-node-5
     hostname: redis-node-5
+    logging: *default-logging
     networks:
       - redis_backend_network
     volumes:
@@ -938,6 +1085,7 @@ services:
     image: redis:8.2.1
     container_name: redis-node-6
     hostname: redis-node-6
+    logging: *default-logging
     networks:
       - redis_backend_network
     volumes:
@@ -976,17 +1124,19 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_STACK_VERSION}
     container_name: es-setup
     hostname: es-setup
+    logging: *default-logging
     networks:
       - elasticsearch_backend_network
     volumes:
-      - es-certs:/usr/share/elasticsearch/config/certs
-      - ./elasticsearch/certs/instances.yml:/usr/share/elasticsearch/config/certs/instances.yml
-      - ./elasticsearch/scripts/init.sh:/tmp/scripts/init.sh:ro
-      - ./redis/scripts/logger.sh:/tmp/scripts/logger.sh:ro
-      - ./elasticsearch/schemas/chat-messages/ilm.json:/tmp/schemas/chat-messages/ilm.json:ro
-      - ./elasticsearch/schemas/chat-messages/settings.json:/tmp/schemas/chat-messages/settings.json:ro
-      - ./elasticsearch/schemas/chat-messages/mappings.json:/tmp/schemas/chat-messages/mappings.json:ro
-      - ./elasticsearch/schemas/chat-messages/template.json:/tmp/schemas/chat-messages/template.json:ro
+      # Named volumes
+      - es-setup-data-shared:/usr/share/elasticsearch/config/certs
+      - es-setup-data-internal:/var/lib/elasticsearch
+      # Config
+      - ./elasticsearch/config/instances.yml:/etc/elasticsearch/instances.yml:ro
+      - ./elasticsearch/schemas:/etc/elasticsearch/schemas:ro
+      # Scripts
+      - ./elasticsearch/scripts/init.sh:/etc/elasticsearch/scripts/init.sh:ro
+      - ./redis/scripts/logger.sh:/etc/elasticsearch/scripts/logger.sh:ro
     environment:
       - ELASTICSEARCH_ELASTIC_USERNAME=${ELASTICSEARCH_ELASTIC_USERNAME}
       - ELASTICSEARCH_ELASTIC_PASSWORD=${ELASTICSEARCH_ELASTIC_PASSWORD}
@@ -1000,26 +1150,27 @@ services:
       - ELASTICSEARCH_FILEBEAT_WRITER_PASSWORD=${ELASTICSEARCH_FILEBEAT_WRITER_PASSWORD}
       - ELASTICSEARCH_FILEBEAT_MONITORING_USERNAME=${ELASTICSEARCH_FILEBEAT_MONITORING_USERNAME}
       - ELASTICSEARCH_FILEBEAT_MONITORING_PASSWORD=${ELASTICSEARCH_FILEBEAT_MONITORING_PASSWORD}
-    user: "0"
-    entrypoint: [ "/bin/bash", "/tmp/scripts/init.sh" ]
+    entrypoint: [ "/bin/bash", "/etc/elasticsearch/scripts/init.sh" ]
     healthcheck:
-      test: [ "CMD-SHELL", "[ -f config/certs/es-master-1/es-master-1.crt ]" ]
+      test: [ "CMD-SHELL", "[ -f /usr/share/elasticsearch/config/certs/es-master-1/es-master-1.crt ]" ]
       interval: 10s
       timeout: 5s
-      retries: 120
+      retries: 5
     restart: no
     mem_limit: 200M
     cpus: 1
+    user: "0"
 
   es-master-1:
     image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
     container_name: es-master-1
     hostname: es-master-1
+    logging: *default-logging
     networks:
       elasticsearch_backend_network:
         ipv4_address: 172.23.0.11
     volumes:
-      - es-certs:/usr/share/elasticsearch/config/certs
+      - es-setup-data-shared:/usr/share/elasticsearch/config/certs:ro
       - es-master-data-1:/usr/share/elasticsearch/data
     environment:
       - network.host=0.0.0.0
@@ -1034,13 +1185,13 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Rule: Set -Xms and -Xmx equal. Use small heap for master nodes.
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
-      - xpack.security.http.ssl.key=certs/es-master-1/es-master-1.key
-      - xpack.security.http.ssl.certificate=certs/es-master-1/es-master-1.crt
-      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certs/es-master-1/es-master-1.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certs/es-master-1/es-master-1.crt
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.key=certs/es-master-1/es-master-1.key
-      - xpack.security.transport.ssl.certificate=certs/es-master-1/es-master-1.crt
-      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certs/es-master-1/es-master-1.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certs/es-master-1/es-master-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=full
     healthcheck:
       test: ["CMD-SHELL","curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-master-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
@@ -1058,11 +1209,12 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
     container_name: es-data-hot-1
     hostname: es-data-hot-1
+    logging: *default-logging
     networks:
       elasticsearch_backend_network:
         ipv4_address: 172.23.0.21
     volumes:
-      - es-certs:/usr/share/elasticsearch/config/certs
+      - es-setup-data-shared:/usr/share/elasticsearch/config/certs:ro
       - es-hot-data-1:/usr/share/elasticsearch/data
     environment:
       - network.host=0.0.0.0
@@ -1077,13 +1229,13 @@ services:
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g" # IMPORTANT: Set this to <= 50% of the host RAM, but do not exceed ~31GB.
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
-      - xpack.security.http.ssl.key=certs/es-data-hot-1/es-data-hot-1.key
-      - xpack.security.http.ssl.certificate=certs/es-data-hot-1/es-data-hot-1.crt
-      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certs/es-data-hot-1/es-data-hot-1.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certs/es-data-hot-1/es-data-hot-1.crt
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.key=certs/es-data-hot-1/es-data-hot-1.key
-      - xpack.security.transport.ssl.certificate=certs/es-data-hot-1/es-data-hot-1.crt
-      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certs/es-data-hot-1/es-data-hot-1.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certs/es-data-hot-1/es-data-hot-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=full
     healthcheck:
       test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-data-hot-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
@@ -1101,11 +1253,12 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
     container_name: es-data-warm-1
     hostname: es-data-warm-1
+    logging: *default-logging
     networks:
       elasticsearch_backend_network:
         ipv4_address: 172.23.0.22
     volumes:
-      - es-certs:/usr/share/elasticsearch/config/certs
+      - es-setup-data-shared:/usr/share/elasticsearch/config/certs:ro
       - es-warm-data-1:/usr/share/elasticsearch/data
     environment:
       - network.host=0.0.0.0
@@ -1120,13 +1273,13 @@ services:
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g" # IMPORTANT: Set this to <= 50% of the host RAM, but do not exceed ~31GB.
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
-      - xpack.security.http.ssl.key=certs/es-data-warm-1/es-data-warm-1.key
-      - xpack.security.http.ssl.certificate=certs/es-data-warm-1/es-data-warm-1.crt
-      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certs/es-data-warm-1/es-data-warm-1.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certs/es-data-warm-1/es-data-warm-1.crt
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.key=certs/es-data-warm-1/es-data-warm-1.key
-      - xpack.security.transport.ssl.certificate=certs/es-data-warm-1/es-data-warm-1.crt
-      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certs/es-data-warm-1/es-data-warm-1.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certs/es-data-warm-1/es-data-warm-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=full
     healthcheck:
       test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-data-warm-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
@@ -1144,12 +1297,12 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:${ELASTICSEARCH_STACK_VERSION}
     container_name: es-coordinating-1
     hostname: es-coordinating-1
+    logging: *default-logging
     networks:
       elasticsearch_backend_network:
         ipv4_address: 172.23.0.31
-      frontend_network:
     volumes:
-      - es-certs:/usr/share/elasticsearch/config/certs
+      - es-setup-data-shared:/usr/share/elasticsearch/config/certs:ro
     environment:
       - network.host=0.0.0.0
       - network.publish_host=172.23.0.31
@@ -1162,13 +1315,13 @@ services:
       - "ES_JAVA_OPTS=-Xms800m -Xmx800m" # Moderate heap for query aggregation.
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
-      - xpack.security.http.ssl.key=certs/es-coordinating-1/es-coordinating-1.key
-      - xpack.security.http.ssl.certificate=certs/es-coordinating-1/es-coordinating-1.crt
-      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certs/es-coordinating-1/es-coordinating-1.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certs/es-coordinating-1/es-coordinating-1.crt
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.key=certs/es-coordinating-1/es-coordinating-1.key
-      - xpack.security.transport.ssl.certificate=certs/es-coordinating-1/es-coordinating-1.crt
-      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certs/es-coordinating-1/es-coordinating-1.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certs/es-coordinating-1/es-coordinating-1.crt
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=full
     healthcheck:
       test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:${ELASTICSEARCH_ELASTIC_PASSWORD} https://es-coordinating-1:9200/_cluster/health | grep -q -E '\"status\":\"(yellow|green)\"'"]
@@ -1186,19 +1339,25 @@ services:
     image: docker.elastic.co/kibana/kibana:${ELASTICSEARCH_STACK_VERSION}
     container_name: es-kibana
     hostname: es-kibana
+    logging: *default-logging
     ports:
       - "5781:5601"
     networks:
       - elasticsearch_backend_network
     volumes:
+      - type: volume
+        source: es-setup-data-shared
+        target: /usr/share/elasticsearch/config/certs
+        read_only: true
+        volume:
+          subpath: ca
       - es-kibana-data:/usr/share/kibana/data
-      - es-certs:/usr/share/kibana/config/certs
     environment:
       - SERVERNAME=es-kibana
       - ELASTICSEARCH_HOSTS=https://es-coordinating-1:9200
       - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_KIBANA_SYSTEM_USERNAME}
       - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_KIBANA_SYSTEM_PASSWORD}
-      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=/usr/share/kibana/config/certs/ca/ca.crt
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=/usr/share/elasticsearch/config/certs/ca.crt
     healthcheck:
       test: [ "CMD-SHELL", "curl -s --fail http://localhost:5601/api/status || exit 1" ]
       interval: 30s
@@ -1208,29 +1367,34 @@ services:
     restart: "no"
     mem_limit: 1GB
     cpus: 2
-    depends_on:
-      es-setup: { condition: service_healthy }
+    depends_on: *elasticsearch-dependencies
 
-  filebeat:
+  es-filebeat:
     image: docker.elastic.co/beats/filebeat-wolfi:${ELASTICSEARCH_STACK_VERSION}
-    container_name: filebeat
-    hostname: filebeat
+    container_name: es-filebeat
+    hostname: es-filebeat
     user: root # Required to access Docker log files and socket
+    logging: *default-logging
     networks:
       - elasticsearch_backend_network
     volumes:
-      # --- Mount the scripts ---
+      # Scripts
       - ./filebeat/scripts/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
-      - ./redis/scripts/logger.sh:/tmp/scripts/logger.sh:ro
+      - ./redis/scripts/logger.sh:/usr/local/bin/logger.sh:ro
       # Mounts for collecting logs and metadata from the Docker daemon
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       # Mount shared certificates for secure connection to Elasticsearch
-      - es-certs:/usr/share/filebeat/config/certs:ro
+      - type: volume
+        source: es-setup-data-shared
+        target: /usr/share/elasticsearch/config/certs
+        read_only: true
+        volume:
+          subpath: ca
       # Mount the configuration file
       - ./filebeat/config/filebeat.yml:/usr/share/filebeat/filebeat.yml
       # Persist Filebeat's registry data to track log file positions
-      - filebeat-data:/usr/share/filebeat/data
+      - es-filebeat-data:/usr/share/filebeat/data
     environment:
       # --- Credentials for the 'setup' command ---
       - KIBANA_HOST=es-kibana:5601
@@ -1254,8 +1418,6 @@ services:
     mem_limit: 1GB
     cpus: 2
     depends_on:
-      es-coordinating-1:
-        condition: service_healthy
       es-kibana:
         condition: service_healthy
 
@@ -1263,19 +1425,29 @@ services:
     image: neo4j:5.26.12-enterprise-ubi9
     container_name: neo4j-node-1
     hostname: neo4j-node-1
+    logging: *default-logging
     networks:
-      neo4j_backend_network:
-      frontend_network:
+      - neo4j_backend_network
     ports:
       - "7473:7473"   # HTTPS
     volumes:
+      # Data
       - neo4j-data-1:/data
-      - ./neo4j/certs:/var/lib/neo4j/certificates/bolt
-      - ./neo4j/certs:/var/lib/neo4j/certificates/https
+      # Certificates
+      ## Bolt
+      - ./cert-generator/output/ca/root.crt:/tmp/certificates/bolt/trusted/public.crt:ro
+      - ./cert-generator/output/services/neo4j-node-1/private.key:/tmp/certificates/bolt/private.key:ro
+      - ./cert-generator/output/services/neo4j-node-1/public.crt:/tmp/certificates/bolt/public.crt:ro
+      ## Https
+      - ./cert-generator/output/ca/root.crt:/tmp/certificates/https/trusted/public.crt:ro
+      - ./cert-generator/output/services/neo4j-node-1/private.key:/tmp/certificates/https/private.key:ro
+      - ./cert-generator/output/services/neo4j-node-1/public.crt:/tmp/certificates/https/public.crt:ro
+      # Scripts
       - ./neo4j/scripts/setup.sh:/startup/setup.sh:ro
       - ./neo4j/scripts/entrypoint.sh:/startup/entrypoint.sh:ro
+      - ./redis/scripts/logger.sh:/startup/logger.sh:ro
+      # Schemas
       - ./neo4j/schema/chat.cypher:/schema/chat.cypher:ro
-      - ./redis/scripts/logger.sh:/tmp/scripts/logger.sh:ro
     environment:
       # --- Authentication & License ---
       # This password is used by the setup script and should be changed or secured.
@@ -1302,7 +1474,7 @@ services:
       - NEO4J_dbms_ssl_policy_bolt_base_directory=/var/lib/neo4j/certificates/bolt
       - NEO4J_dbms_ssl_policy_bolt_private_key=private.key
       - NEO4J_dbms_ssl_policy_bolt_public_certificate=public.crt
-      - NEO4J_dbms_ssl_policy_bolt_client_auth=NONE
+      - NEO4J_dbms_ssl_policy_bolt_client_auth=OPTIONAL
       - NEO4J_server_http_enabled=false
       - NEO4J_server_https_enabled=true
       - NEO4J_dbms_ssl_policy_https_enabled=true
@@ -1322,7 +1494,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 10s
     restart: "no"
     mem_limit: 4GB
     cpus: 4
@@ -1333,13 +1505,9 @@ services:
       dockerfile: Dockerfile
     container_name: kafka1
     hostname: kafka1
+    logging: *default-logging
     networks:
-      kafka_backend_network:
-      frontend_network:
-    ulimits:
-      nofile:
-        soft: 100000
-        hard: 100000
+      - kafka_backend_network
     volumes:
       # Data
       - kafka-data-1:/var/lib/kafka/data
@@ -1477,6 +1645,10 @@ services:
     restart: "no"
     mem_limit: 4GB
     cpus: 4
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
 
   kafka2:
     build:
@@ -1484,13 +1656,9 @@ services:
       dockerfile: Dockerfile
     container_name: kafka2
     hostname: kafka2
+    logging: *default-logging
     networks:
-      kafka_backend_network:
-      frontend_network:
-    ulimits:
-      nofile:
-        soft: 100000
-        hard: 100000
+      - kafka_backend_network
     volumes:
       # Data
       - kafka-data-2:/var/lib/kafka/data
@@ -1628,6 +1796,10 @@ services:
     restart: "no"
     mem_limit: 4GB
     cpus: 4
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
 
   kafka3:
     build:
@@ -1635,13 +1807,9 @@ services:
       dockerfile: Dockerfile
     container_name: kafka3
     hostname: kafka3
+    logging: *default-logging
     networks:
-      kafka_backend_network:
-      frontend_network:
-    ulimits:
-      nofile:
-        soft: 100000
-        hard: 100000
+      - kafka_backend_network
     volumes:
       # Data
       - kafka-data-3:/var/lib/kafka/data
@@ -1779,14 +1947,18 @@ services:
     restart: "no"
     mem_limit: 4GB
     cpus: 4
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
 
   schema-registry-1:
     image: 'confluentinc/cp-schema-registry:7.9.4'
     container_name: schema-registry-1
     hostname: schema-registry-1
+    logging: *default-logging
     networks:
       - kafka_backend_network
-      - frontend_network
     volumes:
       - ./kafka/secrets/kafka.truststore.jks:/etc/kafka/secrets/kafka.truststore.jks:ro
     environment:
@@ -1817,13 +1989,6 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 3
 
       SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: full_transitive
-    depends_on:
-        kafka1:
-            condition: service_healthy
-        kafka2:
-            condition: service_healthy
-        kafka3:
-            condition: service_healthy
     healthcheck:
       test: curl --fail --silent --insecure http://schema-registry-1:8085/subjects --output /dev/null || exit 1
       interval: 10s
@@ -1833,15 +1998,16 @@ services:
     restart: "no"
     mem_limit: 1GB
     cpus: 2
+    depends_on: *kafka-dependencies
 
   prometheus:
     image: 'prom/prometheus:v3.5.0'
     container_name: prometheus
     hostname: prometheus
+    logging: *default-logging
     networks:
       - monitoring_network
-      - frontend_network
-    user: "0:0" # Run as root to ensure access to mounted config files
+      - chat_app_network
     volumes:
       - prometheus-data:/var/lib/prometheus/data
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -1850,15 +2016,6 @@ services:
       - '--storage.tsdb.path=/var/lib/prometheus/data'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
-    depends_on:
-      pg-exporter:
-        condition: service_healthy
-      scylla-node1:
-        condition: service_healthy
-      scylla-node2:
-        condition: service_healthy
-      scylla-node3:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
       interval: 30s
@@ -1868,11 +2025,13 @@ services:
     restart: "no"
     mem_limit: 2GB
     cpus: 4
+    user: "0:0" # Run as root to ensure access to mounted config files
 
   grafana:
     image: 'grafana/grafana:12.3.0-17750354453'
     container_name: grafana
     hostname: grafana
+    logging: *default-logging
     networks:
       - monitoring_network
     ports:
@@ -1884,9 +2043,6 @@ services:
       - ./grafana/provisioning/:/etc/grafana/provisioning/:ro
       - ./grafana/dashboards/:/etc/grafana/dashboards/:ro
       - grafana-data:/var/lib/grafana
-    depends_on:
-      prometheus:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-s", "--fail", "http://localhost:3000/api/health"]
       interval: 30s
@@ -1896,72 +2052,70 @@ services:
     restart: "no"
     mem_limit: 1GB
     cpus: 2
+    depends_on:
+      prometheus:
+        condition: service_healthy
 
   chat-app-1:
     build:
-      context: ../../app
-      dockerfile: Dockerfile.dev
+      context: ./chat-app
+      dockerfile: Dockerfile
     container_name: chat-app-1
     hostname: chat-app-1
+    logging: *default-logging
     networks:
-      - frontend_network
-      - postgres_backend_network
-      - redis_backend_network
       - etcd_backend_network
+      - postgres_backend_network
+      - scylla_backend_network
+      - redis_backend_network
+      - elasticsearch_backend_network
+      - neo4j_backend_network
+      - kafka_backend_network
+      - chat_app_network
     volumes:
-      - ../../app:/app
-      - ../../config:/app/config:ro
-      - ./kafka/secrets/ca.crt:/app/certs/kafka/ca/public.crt:ro
-      - es-certs:/app/certs/es:ro
-      - ./cert-generator/output/ca/root.crt:/app/certs/root/ca/public.crt:ro
-      - ./cert-generator/output/services/chat-app-1/public.crt:/app/certs/own/public.crt:ro
-      - ./cert-generator/output/services/chat-app-1/private.key:/app/certs/own/private.key:ro
+      # Source code
+      - ../../app:/usr/local/dev/chat
+      # Scripts
+      - ./chat-app/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      # Config
+      - ./chat-app/config.yaml:/etc/chat/config.yaml:ro
+      # Certificates
+      ## Own
+      - ./cert-generator/output/ca/root.crt:/etc/chat/certs/app/trusted/public.crt:ro
+      - ./cert-generator/output/services/chat-app-1/public.crt:/etc/chat/certs/app/public.crt:ro
+      - ./cert-generator/output/services/chat-app-1/private.key:/etc/chat/certs/app/private.key:ro
+      ## Dependencies
+      - ./kafka/secrets/ca.crt:/etc/chat/certs/kafka/trusted/public.crt:ro
+      - type: volume
+        source: es-setup-data-shared
+        target: /etc/chat/certs/elasticsearch/trusted
+        read_only: true
+        volume:
+          subpath: ca
     environment:
       ENV: development
       BUILD_VERSION: ${CHAT_APP_VERSION}
       BUILD_COMMIT: ${CHAT_APP_COMMIT}
       BUILD_TIME: ${CHAT_APP_BUILD_TIME}
-    depends_on:
-      pgpool-node-1:
-        condition: service_healthy
-      scylla-node1:
-        condition: service_healthy
-      scylla-node2:
-        condition: service_healthy
-      scylla-node3:
-        condition: service_healthy
-      redis-node-1:
-        condition: service_healthy
-      redis-node-2:
-        condition: service_healthy
-      redis-node-3:
-        condition: service_healthy
-      redis-node-4:
-        condition: service_healthy
-      redis-node-5:
-        condition: service_healthy
-      redis-node-6:
-        condition: service_healthy
-      es-coordinating-1:
-        condition: service_healthy
-      filebeat:
-        condition: service_healthy
-      neo4j-node-1:
-        condition: service_healthy
-      kafka1:
-        condition: service_healthy
-      kafka2:
-        condition: service_healthy
-      kafka3:
-        condition: service_healthy
-      schema-registry-1:
-        condition: service_healthy
-      prometheus:
-        condition: service_healthy
-    mem_limit: 2GB
+    entrypoint: ["/bin/bash", "/usr/local/bin/entrypoint.sh"]
+    mem_limit: 4GB # otherwise go build fails
     cpus: 4
     labels:
       "co.elastic.logs/enabled": true
       "co.elastic.logs/json.expand_keys": true
       "co.elastic.logs/json.add_error_key": true
       "co.elastic.logs/json.message_key": message
+    depends_on:
+      pgpool-node-1:
+        condition: service_healthy
+      scylla-setup:
+        condition: service_healthy
+      <<: *redis-dependencies
+      es-filebeat:
+        condition: service_healthy
+      neo4j-node-1:
+        condition: service_healthy
+      schema-registry-1:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy

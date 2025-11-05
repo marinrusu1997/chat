@@ -9,24 +9,29 @@ type CredentialsConfig struct {
 	Password util.Secret `koanf:"password" validate:"required,min=4,max=64"`
 }
 
+type TlsPathsConfig struct {
+	Truststore  util.Secret `koanf:"truststore"`
+	Certificate util.Secret `koanf:"certificate"`
+	Key         util.Secret `koanf:"key"`
+}
+
 type EtcdConfig struct {
-	Endpoints        []string `koanf:"endpoints" validate:"required,min=1,max=10,unique,dive,required,https_url"`
-	CACertFilePath   string   `koanf:"ca_cert_file_path" validate:"required,filepath"`
-	MTLSCertFilePath string   `koanf:"mtls_cert_file_path" validate:"required,filepath"`
-	MTLSKeyFilePath  string   `koanf:"mtls_key_file_path" validate:"required,filepath"`
+	TlsPathsConfig `koanf:",squash"`
+	Endpoints      []string `koanf:"endpoints" validate:"required,min=1,max=10,unique,dive,required,https_url"`
 }
 
 type PostgreSQLConfig struct {
 	CredentialsConfig `koanf:",squash"`
+	TlsPathsConfig    `koanf:",squash"`
 	Host              string            `koanf:"host" validate:"required,hostname|ip"`
 	Port              uint16            `koanf:"port" validate:"required,port"`
 	DbName            string            `koanf:"dbname" validate:"required,min=4,max=64"`
-	CACertFilePath    string            `koanf:"ca_cert_file_path" validate:"required,filepath"`
 	Options           map[string]string `koanf:"options" validate:"dive,keys,required,min=4,max=64,endkeys,required,min=1,max=64"`
 }
 
 type ScyllaDBConfig struct {
 	CredentialsConfig `koanf:",squash"`
+	TlsPathsConfig    `koanf:",squash"`
 	Hosts             []string `koanf:"hosts" validate:"required,min=1,max=10,unique,dive,required,hostname|ip"`
 	ShardAwarePort    uint16   `koanf:"shard_aware_port" validate:"required,port"`
 	LocalDC           string   `koanf:"local_dc" validate:"omitempty,min=3,max=64,alphanum"`
@@ -35,30 +40,28 @@ type ScyllaDBConfig struct {
 
 type RedisConfig struct {
 	CredentialsConfig `koanf:",squash"`
+	TlsPathsConfig    `koanf:",squash"`
 	Addresses         []string `koanf:"addresses" validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
-	CACertFilePath    string   `koanf:"ca_cert_file_path" validate:"required,filepath"`
-	MTLSCertFilePath  string   `koanf:"mtls_cert_file_path" validate:"required,filepath"`
-	MTLSKeyFilePath   string   `koanf:"mtls_key_file_path" validate:"required,filepath"`
 }
 
 type ElasticsearchConfig struct {
 	CredentialsConfig `koanf:",squash"`
+	TlsPathsConfig    `koanf:",squash"`
 	Addresses         []string `koanf:"addresses" validate:"required,min=1,max=10,unique,dive,required,http_url|https_url"`
-	CACertFilePath    string   `koanf:"ca_cert_file_path" validate:"required,filepath"`
 	ShouldLogReq      bool     `koanf:"should_log_req"`
 	ShouldLogRes      bool     `koanf:"should_log_res"`
 }
 
 type Neo4jConfig struct {
 	CredentialsConfig `koanf:",squash"`
+	TlsPathsConfig    `koanf:",squash"`
 	Uri               string `koanf:"uri" validate:"required,uri,startswith=neo4j"`
-	CACertFilePath    string `koanf:"ca_cert_file_path" validate:"required,filepath"`
 	DatabaseName      string `koanf:"database_name" validate:"required,min=4,max=64,alphanum"`
 }
 
 type KafkaConfig struct {
+	TlsPathsConfig `koanf:",squash"`
 	SeedBrokers    []string          `koanf:"seed_brokers" validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
-	CACertFilePath string            `koanf:"ca_cert_file_path" validate:"required,filepath"`
 	Users          KafkaUsers        `koanf:"users" validate:"required"`
 	Topics         KafkaConfigTopics `koanf:"topics" validate:"required"`
 	GroupID        string            `koanf:"group_id" validate:"required,min=4,max=64,alphanum"`
@@ -83,14 +86,15 @@ type LoggingConfig struct {
 }
 
 type ApplicationConfig struct {
-	InstanceName string
-	Version      string
-	Commit       string
-	BuildTime    string
+	TlsPathsConfig `koanf:",squash"`
+	InstanceName   string
+	Version        string
+	Commit         string
+	BuildTime      string
 }
 
 type Config struct {
-	Application   ApplicationConfig
+	Application   ApplicationConfig   `koanf:"application" validate:"required"`
 	Etcd          EtcdConfig          `koanf:"etcd" validate:"required"`
 	PostgreSQL    PostgreSQLConfig    `koanf:"postgresql" validate:"required"`
 	ScyllaDB      ScyllaDBConfig      `koanf:"scylladb" validate:"required"`
