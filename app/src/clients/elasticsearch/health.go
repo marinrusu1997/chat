@@ -80,12 +80,19 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 	if res.IsError() || res.Body == nil {
 		pingResult.SetPingOutput(
 			health.PingCauseBadResponse,
-			fmt.Sprintf("cluster health API returned error: %s", res.String()),
+			"cluster health API returned error: "+res.String(),
 		)
 		return pingResult
 	}
 
 	rawBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		pingResult.SetPingOutput(
+			health.PingCauseBadResponse,
+			fmt.Sprintf("failed to read cluster health response body: %v", err),
+		)
+		return pingResult
+	}
 	if err := res.Body.Close(); err != nil {
 		c.logger.Warn().Err(err).Msg("failed to close cluster health response body")
 	}
@@ -103,7 +110,7 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 	if pingCause != health.PingCauseOk {
 		pingResult.SetPingOutput(
 			pingCause,
-			fmt.Sprintf("cluster health status: %s", clusterHealth.Status),
+			"cluster health status: "+clusterHealth.Status,
 		)
 		return pingResult
 	}
@@ -129,6 +136,7 @@ func clusterHealthToPingCause(ch *clusterHealthResponse) health.PingCause {
 		ch.TaskMaxWaitingInQueueMillis > degradedTaskMaxWaitingInQueueMillis ||
 		ch.ActiveShardsPercent < 100 ||
 		ch.UnassignedShards > 0 {
+
 		return health.PingCauseOverloaded
 	}
 

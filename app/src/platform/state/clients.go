@@ -37,7 +37,7 @@ type StorageClients struct {
 
 func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Config, loggerFactory *logging.LoggerFactory) (*StorageClients, error) {
 	// Elasticsearch Client
-	elasticsearchClient := elasticsearch.NewClient(elasticsearch.ClientOptions{
+	elasticsearchClient := elasticsearch.NewClient(&elasticsearch.ClientOptions{
 		Addresses:    config.Elasticsearch.Addresses,
 		TLSConfig:    tlsConfig[elasticsearch.PingTargetName],
 		Username:     config.Elasticsearch.Username,
@@ -51,9 +51,9 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 	})
 
 	// Neo4j Client
-	neo4jClient := neo4j.NewClient(neo4j.ClientOptions{
-		Uri:          config.Neo4j.Uri,
-		TlsConfig:    tlsConfig[neo4j.PingTargetName],
+	neo4jClient := neo4j.NewClient(&neo4j.ClientOptions{
+		URI:          config.Neo4j.URI,
+		TLSConfig:    tlsConfig[neo4j.PingTargetName],
 		Username:     config.Neo4j.Username,
 		Password:     string(config.Neo4j.Password),
 		DatabaseName: config.Neo4j.DatabaseName,
@@ -65,13 +65,13 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 	})
 
 	// PostgreSQL Client
-	postgresClient, err := postgresql.NewClient(postgresql.ClientOptions{
+	postgresClient, err := postgresql.NewClient(&postgresql.ClientOptions{
 		URL: fmt.Sprintf("user=%s password=%s host=%s port=%d dbname=%s",
 			config.PostgreSQL.Username,
 			string(config.PostgreSQL.Password),
 			config.PostgreSQL.Host,
 			config.PostgreSQL.Port,
-			config.PostgreSQL.DbName,
+			config.PostgreSQL.DBName,
 		),
 		TLSConfig:               tlsConfig[postgresql.PingTargetName],
 		ApplicationInstanceName: config.Application.InstanceName,
@@ -83,7 +83,7 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 	}
 
 	// Redis Client
-	redisClient := redis.NewClient(redis.ClientOptions{
+	redisClient := redis.NewClient(&redis.ClientOptions{
 		Addresses:  config.Redis.Addresses,
 		TLSConfig:  tlsConfig[redis.PingTargetName],
 		Username:   config.Redis.Username,
@@ -93,7 +93,7 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 	})
 
 	// Etcd Client
-	etcdClient := etcd.NewClient(etcd.ClientOptions{
+	etcdClient := etcd.NewClient(&etcd.ClientOptions{
 		Endpoints: config.Etcd.Endpoints,
 		TLSConfig: tlsConfig[etcd.PingTargetName],
 		Logger: etcd.ClientLoggerOptions{
@@ -103,7 +103,7 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 	})
 
 	// ScyllaDB Client
-	scyllaClient := scylla.NewClient(scylla.ClientOptions{
+	scyllaClient := scylla.NewClient(&scylla.ClientOptions{
 		Hosts:          config.ScyllaDB.Hosts,
 		ShardAwarePort: config.ScyllaDB.ShardAwarePort,
 		TLSConfig:      tlsConfig[scylla.PingTargetName],

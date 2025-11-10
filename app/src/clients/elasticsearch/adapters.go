@@ -16,16 +16,16 @@ type driverLoggerAdapter struct {
 	shouldLogResponses bool
 }
 
-func (adapter *driverLoggerAdapter) RequestBodyEnabled() bool  { return adapter.shouldLogRequests }
-func (adapter *driverLoggerAdapter) ResponseBodyEnabled() bool { return adapter.shouldLogResponses }
-func (adapter *driverLoggerAdapter) LogRoundTrip(req *http.Request, res *http.Response, err error, start time.Time, dur time.Duration) error {
+func (a *driverLoggerAdapter) RequestBodyEnabled() bool  { return a.shouldLogRequests }
+func (a *driverLoggerAdapter) ResponseBodyEnabled() bool { return a.shouldLogResponses }
+func (a *driverLoggerAdapter) LogRoundTrip(req *http.Request, res *http.Response, err error, start time.Time, dur time.Duration) error { //nolint:revive // interface compliance
 	var event *zerolog.Event
 
 	// Log errors regardless of the configuration
 	if err != nil {
-		event = adapter.logger.Error().Err(err)
-	} else if adapter.shouldLogRequests || adapter.shouldLogResponses {
-		event = adapter.logger.Info()
+		event = a.logger.Error().Err(err)
+	} else if a.shouldLogRequests || a.shouldLogResponses {
+		event = a.logger.Info()
 	}
 	if event == nil {
 		return err
@@ -38,11 +38,11 @@ func (adapter *driverLoggerAdapter) LogRoundTrip(req *http.Request, res *http.Re
 		Str("url", req.URL.String())
 
 	// Conditionally log the request body
-	if adapter.shouldLogRequests && req.Body != nil {
-		reqBody, err := io.ReadAll(req.Body)
-		if err != nil {
-			adapter.logger.Warn().
-				Err(err).
+	if a.shouldLogRequests && req.Body != nil {
+		reqBody, readErr := io.ReadAll(req.Body)
+		if readErr != nil {
+			a.logger.Warn().
+				Err(readErr).
 				Str("method", req.Method).
 				Str("url", req.URL.String()).
 				Msg("Failed to read request body")
@@ -53,13 +53,13 @@ func (adapter *driverLoggerAdapter) LogRoundTrip(req *http.Request, res *http.Re
 	}
 
 	// Conditionally log the response body
-	if adapter.shouldLogResponses && res != nil {
+	if a.shouldLogResponses && res != nil {
 		resDict := zerolog.Dict().Int("status_code", res.StatusCode)
 		if res.Body != nil {
-			resBody, err := io.ReadAll(res.Body)
-			if err != nil {
-				adapter.logger.Warn().
-					Err(err).
+			resBody, readErr := io.ReadAll(res.Body)
+			if readErr != nil {
+				a.logger.Warn().
+					Err(readErr).
 					Str("method", req.Method).
 					Str("url", req.URL.String()).
 					Msg("Failed to read response body")

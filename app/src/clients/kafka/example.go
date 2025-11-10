@@ -31,11 +31,11 @@ func newClient(cfg ScratchConfig) (*Client, error) {
 	consumeResetOffset := kgo.NewOffset().AtEnd()
 	partitioner := kgo.ManualPartitioner()
 
-	builder := NewConfigurationBuilder(ConfigurationLoggers{
+	builder := NewConfigurationBuilder(&ConfigurationLoggers{
 		Client: cfg.Logger,
 		Driver: cfg.Logger,
 	})
-	_ = builder.SetGeneralConfig(GeneralConfig{
+	_ = builder.SetGeneralConfig(&GeneralConfig{
 		ClientID:       "exampleclientid",
 		ServiceName:    "chatapp",
 		ServiceVersion: "v1.0.0",
@@ -44,10 +44,10 @@ func newClient(cfg ScratchConfig) (*Client, error) {
 		Username:       cfg.Username,
 		Password:       cfg.Password,
 	}) &&
-		builder.SetProducerConfig(ProducerConfig{
+		builder.SetProducerConfig(&ProducerConfig{
 			RecordPartitioner: &partitioner,
 		}) &&
-		builder.SetConsumerConfig(ConsumerConfig{
+		builder.SetConsumerConfig(&ConsumerConfig{
 			ConsumeStartOffset: &consumeStartOffset,
 			ConsumeResetOffset: &consumeResetOffset,
 		})

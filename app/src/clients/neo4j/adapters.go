@@ -11,16 +11,16 @@ type driverLoggerAdapter struct {
 	logger zerolog.Logger
 }
 
-func (a *driverLoggerAdapter) Error(name string, id string, err error) {
+func (a *driverLoggerAdapter) Error(name, id string, err error) {
 	a.logger.Error().Err(err).Str("name", name).Str("id", id).Msg("Neo4j Driver Error")
 }
-func (a *driverLoggerAdapter) Warnf(name string, id string, msg string, args ...any) {
+func (a *driverLoggerAdapter) Warnf(name, id, msg string, args ...any) {
 	a.logger.Warn().Str("name", name).Str("id", id).Msg(fmt.Sprintf(msg, args...))
 }
-func (a *driverLoggerAdapter) Infof(name string, id string, msg string, args ...any) {
+func (a *driverLoggerAdapter) Infof(name, id, msg string, args ...any) {
 	a.logger.Info().Str("name", name).Str("id", id).Msg(fmt.Sprintf(msg, args...))
 }
-func (a *driverLoggerAdapter) Debugf(name string, id string, msg string, args ...any) {
+func (a *driverLoggerAdapter) Debugf(name, id, msg string, args ...any) {
 	a.logger.Debug().Str("name", name).Str("id", id).Msg(fmt.Sprintf(msg, args...))
 }
 

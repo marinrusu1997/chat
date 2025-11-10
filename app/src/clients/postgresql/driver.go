@@ -35,7 +35,7 @@ type ClientOptions struct {
 	Logger                  zerolog.Logger
 }
 
-func NewClient(options ClientOptions) (*Client, error) {
+func NewClient(options *ClientOptions) (*Client, error) {
 	errorb := oops.
 		In("postgresql client").
 		Tags("constructor")

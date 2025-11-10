@@ -3,12 +3,14 @@ package redis
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 )
+
+var ErrAlreadyStarted = errors.New("redis client already started")
 
 type Client struct {
 	logger  zerolog.Logger
@@ -25,7 +27,7 @@ type ClientOptions struct {
 	Logger     zerolog.Logger
 }
 
-func NewClient(options ClientOptions) *Client {
+func NewClient(options *ClientOptions) *Client {
 	return &Client{
 		logger: options.Logger,
 		options: &redis.ClusterOptions{
@@ -56,7 +58,7 @@ func NewClient(options ClientOptions) *Client {
 
 func (c *Client) Start(_ context.Context) error {
 	if c.Driver != nil {
-		return fmt.Errorf("redis driver already started")
+		return ErrAlreadyStarted
 	}
 
 	c.Driver = redis.NewClusterClient(c.options)

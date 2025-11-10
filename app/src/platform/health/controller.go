@@ -1,7 +1,7 @@
 package health
 
 import (
-	error2 "chat/src/platform/error"
+	"chat/src/platform/perr"
 	"chat/src/platform/validation"
 	"chat/src/util"
 	"context"
@@ -52,12 +52,12 @@ type Controller struct {
 
 func NewController(config *ControllerConfig) (*Controller, error) {
 	if err := config.setup(); err != nil {
-		return nil, fmt.Errorf("failed to create health controller because config setup failed: %v", err)
+		return nil, fmt.Errorf("failed to create health controller because config setup failed: %w", err)
 	}
 
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create health controller because scheduler creation failed: %v", err)
+		return nil, fmt.Errorf("failed to create health controller because scheduler creation failed: %w", err)
 	}
 
 	controller := &Controller{
@@ -78,7 +78,7 @@ func NewController(config *ControllerConfig) (*Controller, error) {
 			c.pingAndCache(depth)
 		}, controller))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create health controller because scheduler job creation failed: %v", err)
+		return nil, fmt.Errorf("failed to create health controller because scheduler job creation failed: %w", err)
 	}
 
 	return controller, nil
@@ -119,8 +119,6 @@ func (c *Controller) pingAndCache(depth PingDepth) {
 	var wg sync.WaitGroup
 	wg.Add(len(c.dependencies))
 	for name, dep := range c.dependencies {
-		name, dep := name, dep
-
 		go func() {
 			defer wg.Done()
 			defer func() {
@@ -137,15 +135,16 @@ func (c *Controller) pingAndCache(depth PingDepth) {
 			result := ping(ctx)
 			c.cache.Set(name, result, ttlcache.NoTTL)
 
-			if !result.Healthy() {
-				c.stats.overallHealthy.Store(false)
-
-				log := c.logger.Error
-				if result.Degraded() {
-					log = c.logger.Warn
-				}
-				log().Msgf("'%s' is unhealthy:\n%s", name, result.PrettyJSON())
+			if result.Healthy() {
+				return
 			}
+
+			c.stats.overallHealthy.Store(false)
+			log := c.logger.Error
+			if result.Degraded() {
+				log = c.logger.Warn
+			}
+			log().Msgf("'%s' is unhealthy:\n%s", name, result.PrettyJSON())
 		}()
 	}
 	wg.Wait()
@@ -170,7 +169,7 @@ func (s *pingingStats) shouldDeepPing() bool {
 func (c *ControllerConfig) setup() error {
 	errorb := oops.
 		In(util.GetFunctionName()).
-		Code(error2.ECONFIG)
+		Code(perr.ECONFIG)
 
 	if err := defaults.Set(c); err != nil {
 		return errorb.Wrapf(err, "failed to set defaults")

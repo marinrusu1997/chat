@@ -34,7 +34,7 @@ func main() {
 		panic(fmt.Sprintf("Error loading config: %+v", err))
 	}
 
-	loggerFactory, err := logging.NewFactory(logging.Options{
+	loggerFactory, err := logging.NewFactory(&logging.Options{
 		AppInstanceID: cfg.Application.InstanceName,
 		AppVersion:    cfg.Application.Version,
 		AppCommit:     cfg.Application.Commit,
@@ -129,7 +129,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to create storage clients")
 	}
 
-	lifecycleController, err := lifecycle.NewController(lifecycle.ControllerOptions{
+	lifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
 		Services: map[string]lifecycle.ServiceLifecycle{
 			elasticsearch.PingTargetName: storageClients.Elasticsearch,
 			// kafka.PingTargetName:         storageClients.Kafka.Admin, @fixme enable later

@@ -1,7 +1,7 @@
 package security
 
 import (
-	error2 "chat/src/platform/error"
+	"chat/src/platform/perr"
 	"chat/src/platform/validation"
 	"chat/src/util"
 	"crypto/tls"
@@ -39,19 +39,19 @@ type TLSConfigs struct {
 
 func LoadTLSConfigs(sources *TLSConfigSources) (TLSConfigs, error) {
 	if err := sources.setup(); err != nil {
-		return TLSConfigs{}, fmt.Errorf("can't load tls configs, because sources setup failed: %v", err)
+		return TLSConfigs{}, fmt.Errorf("can't load tls configs, because sources setup failed: %w", err)
 	}
 
-	globalConfig, err := buildTlsConfig(&sources.Global)
+	globalConfig, err := buildTLSConfig(&sources.Global)
 	if err != nil {
-		return TLSConfigs{}, fmt.Errorf("can't build global tls config: %v", err)
+		return TLSConfigs{}, fmt.Errorf("can't build global tls config: %w", err)
 	}
 
 	serviceConfigs := make(map[string]*tls.Config, len(sources.Services))
 	for svcName, svcOptions := range sources.Services {
-		svcConfig, err := buildTlsConfig(&svcOptions.Paths)
+		svcConfig, err := buildTLSConfig(&svcOptions.Paths)
 		if err != nil {
-			return TLSConfigs{}, fmt.Errorf("can't build tls config for service '%s': %v", svcName, err)
+			return TLSConfigs{}, fmt.Errorf("can't build tls config for service '%s': %w", svcName, err)
 		}
 		serviceConfigs[svcName] = svcConfig
 	}
@@ -62,13 +62,13 @@ func LoadTLSConfigs(sources *TLSConfigSources) (TLSConfigs, error) {
 	}, nil
 }
 
-func buildTlsConfig(paths *TLSMaterialPaths) (*tls.Config, error) {
+func buildTLSConfig(paths *TLSMaterialPaths) (*tls.Config, error) {
 	// 1. Load trusted CA bundle
 	caBytes, err := os.ReadFile(paths.Truststore)
 	if err != nil {
 		return nil, oops.
 			In(util.GetFunctionName()).
-			Code(error2.ENOENT).
+			Code(perr.ENOENT).
 			Wrapf(err, "failed to read truststore from path '%s'", paths.Truststore)
 	}
 
@@ -76,7 +76,7 @@ func buildTlsConfig(paths *TLSMaterialPaths) (*tls.Config, error) {
 	if !caPool.AppendCertsFromPEM(caBytes) {
 		return nil, oops.
 			In(util.GetFunctionName()).
-			Code(error2.ENOENT).
+			Code(perr.ENOENT).
 			Wrapf(err, "failed to appent truststore from path '%s' to cert pool", paths.Truststore)
 	}
 
@@ -87,7 +87,7 @@ func buildTlsConfig(paths *TLSMaterialPaths) (*tls.Config, error) {
 		if err != nil {
 			return nil, oops.
 				In(util.GetFunctionName()).
-				Code(error2.ENOENT).
+				Code(perr.ENOENT).
 				Wrapf(err, "failed to load certificate from path '%s' and key from path '%s': %v", paths.Certificate, paths.Key, err)
 		}
 		certificates = append(certificates, cert)
@@ -105,14 +105,14 @@ func buildTlsConfig(paths *TLSMaterialPaths) (*tls.Config, error) {
 func (c *TLSConfigSources) setup() error {
 	errorb := oops.
 		In(util.GetFunctionName()).
-		Code(error2.ECONFIG)
+		Code(perr.ECONFIG)
 
 	if err := validation.Instance.Struct(c); err != nil {
 		return errorb.Wrapf(err, "failed to validate")
 	}
 
 	if c.Global.Truststore == "" || c.Global.Certificate == "" || c.Global.Key == "" {
-		return errorb.New("global TLS material paths must be all specified")
+		return errorb.New("global TLS material paths must be all specified") //nolint:wrapcheck // we are already wrapping it
 	}
 
 	for svcName, svcConfig := range c.Services {

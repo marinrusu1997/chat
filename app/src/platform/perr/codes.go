@@ -1,4 +1,4 @@
-package error
+package perr
 
 // POSIX error code constants.
 const (

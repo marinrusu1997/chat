@@ -3,6 +3,7 @@ package neo4j
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j/config"
 	"github.com/rs/zerolog"
 )
+
+var ErrAlreadyStarted = errors.New("neo4j client already started")
 
 type clientOptions struct {
 	uri          string
@@ -38,25 +41,25 @@ type ClientLoggerOptions struct {
 
 type ClientOptions struct {
 	Logger       ClientLoggerOptions
-	Uri          string
+	URI          string
 	Username     string
 	Password     string
 	DatabaseName string
-	TlsConfig    *tls.Config
+	TLSConfig    *tls.Config
 }
 
-func NewClient(options ClientOptions) *Client {
+func NewClient(options *ClientOptions) *Client {
 	return &Client{
 		logger: clientLoggers{
 			client:  options.Logger.Client,
 			session: sessionLoggerAdapter{logger: options.Logger.Session},
 		},
 		options: clientOptions{
-			uri:          options.Uri,
+			uri:          options.URI,
 			auth:         neo4j.BasicAuth(options.Username, options.Password, ""),
 			databaseName: options.DatabaseName,
 			configurer: func(config *config.Config) {
-				config.TlsConfig = options.TlsConfig
+				config.TlsConfig = options.TLSConfig
 				config.Log = &driverLoggerAdapter{logger: options.Logger.Driver}
 				config.MaxTransactionRetryTime = 5 * time.Second
 				config.MaxConnectionPoolSize = 200
@@ -70,7 +73,7 @@ func NewClient(options ClientOptions) *Client {
 
 func (c *Client) Start(ctx context.Context) error {
 	if c.Driver != nil {
-		return fmt.Errorf("neo4j client already started")
+		return ErrAlreadyStarted
 	}
 
 	driver, err := neo4j.NewDriver(c.options.uri, c.options.auth, c.options.configurer)

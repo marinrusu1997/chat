@@ -1,14 +1,17 @@
 package kafka
 
 import (
-	error2 "chat/src/platform/error"
+	"chat/src/platform/perr"
 	"chat/src/util"
 	"context"
+	"errors"
 
 	"github.com/rs/zerolog"
 	"github.com/samber/oops"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+var ErrAlreadyStarted = errors.New("kafka client already started")
 
 type Client struct {
 	logger  zerolog.Logger
@@ -21,7 +24,7 @@ func NewClient(config ConfigurationBuilder) (*Client, error) {
 	if err != nil {
 		return nil, oops.
 			In(util.GetFunctionName()).
-			Code(error2.ECONFIG).
+			Code(perr.ECONFIG).
 			Wrapf(err, "can't create a new Kafka client because configuration is broken")
 	}
 
@@ -34,17 +37,14 @@ func NewClient(config ConfigurationBuilder) (*Client, error) {
 
 func (c *Client) Start(_ context.Context) error {
 	if c.Driver != nil {
-		return oops.
-			In(util.GetFunctionName()).
-			Code(error2.EINIT).
-			New("Kafka client already started")
+		return ErrAlreadyStarted
 	}
 
 	client, err := kgo.NewClient(c.options...)
 	if err != nil {
 		return oops.
 			In(util.GetFunctionName()).
-			Code(error2.EINIT).
+			Code(perr.EINIT).
 			Wrapf(err, "can't create a new Kafka client")
 	}
 

@@ -13,7 +13,7 @@ import (
 const (
 	PingTargetName            = "etcd"
 	pingDeepAcceptableLatency = 150 * time.Second
-	acceptableDbUsageRatio    = 0.8
+	acceptableDBUsageRatio    = 0.8
 )
 
 func (c *Client) PingShallow(_ context.Context) health.PingResult {
@@ -26,10 +26,10 @@ func (c *Client) PingShallow(_ context.Context) health.PingResult {
 	}
 
 	state := conn.GetState()
-	if !(state == connectivity.Connecting || state == connectivity.Ready || state == connectivity.Idle) {
+	if state != connectivity.Connecting && state != connectivity.Ready && state != connectivity.Idle {
 		pingResult.SetPingOutput(
 			health.PingCauseNetwork,
-			fmt.Sprintf("gRPC connection in bad state: %s", state.String()),
+			"gRPC connection in bad state: "+state.String(),
 		)
 		return pingResult
 	}
@@ -46,7 +46,7 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 		return pingResult
 	}
 
-	target := c.config.Endpoints[rand.IntN(len(c.config.Endpoints))]
+	target := c.config.Endpoints[rand.IntN(len(c.config.Endpoints))] //nolint:gosec // random selection for load distribution
 	res, err := c.Driver.Status(ctx, target)
 	pingResult.StoreComputedLatency(pingDeepAcceptableLatency)
 	if err != nil {
@@ -57,7 +57,7 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 		return pingResult
 	}
 
-	if res.Errors != nil && len(res.Errors) > 0 {
+	if len(res.Errors) > 0 {
 		pingResult.SetPingOutput(
 			health.PingCauseUnstable,
 			fmt.Sprintf("etcd status contains these errors: %v", res.Errors),
@@ -66,7 +66,7 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 	}
 
 	dbUsage := float64(res.DbSizeInUse) / float64(res.DbSizeQuota)
-	if dbUsage > acceptableDbUsageRatio {
+	if dbUsage > acceptableDBUsageRatio {
 		pingResult.SetPingOutput(
 			health.PingCauseUnstable,
 			fmt.Sprintf(

@@ -1,16 +1,16 @@
 package lifecycle
 
 import (
-	error2 "chat/src/platform/error"
+	"chat/src/platform/perr"
 	"chat/src/platform/validation"
 	"chat/src/util"
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/creasty/defaults"
+	"github.com/pkg/errors"
 	"github.com/quipo/dependencysolver"
 	"github.com/rs/zerolog"
 	"github.com/samber/oops"
@@ -42,7 +42,7 @@ type ControllerOptions struct {
 	Logger       zerolog.Logger              `validate:"required"`
 }
 
-func NewController(options ControllerOptions) (*Controller, error) {
+func NewController(options *ControllerOptions) (*Controller, error) {
 	errorb := oops.In("Lifecycle Controller constructor")
 
 	if err := options.setup(); err != nil {
@@ -72,24 +72,21 @@ func NewController(options ControllerOptions) (*Controller, error) {
 }
 
 func (lc *Controller) Start(ctx context.Context) error {
-	var startedLayers [][]string
+	var startedLayers [][]string //nolint:prealloc // We are dynamically appending layers
 	var startedSvcs atomic.Uint32
 	var totalSvcs = len(lc.services)
 
 	for layerIdx, layer := range lc.layers {
 		var (
 			wg        sync.WaitGroup
-			succeeded = make([]string, len(layer), len(layer))
+			succeeded = make([]string, len(layer), len(layer)) //nolint:staticcheck // This is a hack to avoid concurrency primitives
 			failed    atomic.Bool
 		)
 
 		for svcIdx, svcName := range layer {
 			svc := lc.services[svcName]
-			wg.Add(1)
 
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				svcCtx, cancel := context.WithTimeout(ctx, lc.startupTimeout(svcName))
 				defer cancel()
 
@@ -102,7 +99,7 @@ func (lc *Controller) Start(ctx context.Context) error {
 				succeeded[svcIdx] = svcName
 				startedSvcs.Add(1)
 				lc.logger.Info().Msgf("Started service '%s' (%d/%d)", svcName, startedSvcs.Load(), totalSvcs)
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -112,7 +109,7 @@ func (lc *Controller) Start(ctx context.Context) error {
 			lc.rollbackLayer(rollbackCtx, succeeded)
 			lc.rollback(rollbackCtx, startedLayers)
 
-			return fmt.Errorf(
+			return errors.Errorf(
 				"startup failed in layer %d after %d/%d services started; rollback performed",
 				layerIdx, startedSvcs.Load(), totalSvcs,
 			)
@@ -147,16 +144,13 @@ func (lc *Controller) rollbackLayer(ctx context.Context, layer []string) {
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			svcCtx, cancel := context.WithTimeout(ctx, lc.shutdownTimeout(svcName))
 			defer cancel()
 
 			svc.Stop(svcCtx)
 			lc.logger.Info().Msgf("Stopped service '%s'", svcName)
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -182,7 +176,7 @@ func (lc *Controller) shutdownTimeout(service string) time.Duration {
 func (co *ControllerOptions) setup() error {
 	errorb := oops.
 		In(util.GetFunctionName()).
-		Code(error2.ECONFIG)
+		Code(perr.ECONFIG)
 
 	if err := defaults.Set(co); err != nil {
 		return errorb.Wrapf(err, "failed to set defaults")
@@ -204,7 +198,8 @@ func (co *ControllerOptions) setup() error {
 				if _, ok := co.Services[svcDependency]; !ok {
 					return errorb.
 						Errorf(
-							"invalid dependencies configuration: dependency '%s' for service '%s' is not defined in 'Services'", svcDependency, svcName,
+							"invalid dependencies configuration: dependency '%s' for service '%s' is not defined in 'Services'",
+							svcDependency, svcName,
 						)
 				}
 			}
@@ -216,7 +211,8 @@ func (co *ControllerOptions) setup() error {
 			if _, ok := co.Services[svcName]; !ok {
 				return errorb.
 					Errorf(
-						"invalid startup timeouts configuration: service '%s' in 'StartupPerService' is not defined in 'Services'", svcName,
+						"invalid startup timeouts configuration: service '%s' in 'StartupPerService' is not defined in 'Services'",
+						svcName,
 					)
 			}
 		}
@@ -227,7 +223,8 @@ func (co *ControllerOptions) setup() error {
 			if _, ok := co.Services[svcName]; !ok {
 				return errorb.
 					Errorf(
-						"invalid shutdown timeouts configuration: service '%s' in 'ShutdownPerService' is not defined in 'Services'", svcName,
+						"invalid shutdown timeouts configuration: service '%s' in 'ShutdownPerService' is not defined in 'Services'",
+						svcName,
 					)
 			}
 		}

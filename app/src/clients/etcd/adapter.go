@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// zapCoreBridge bridges zapcore.Core to zerolog
+// zapCoreBridge bridges zapcore.Core to zerolog.
 type zapCoreBridge struct {
 	logger zerolog.Logger
 }
@@ -43,16 +43,16 @@ func (b *zapCoreBridge) With(fields []zapcore.Field) zapcore.Core {
 	return &zapCoreBridge{logger: logCtx.Logger()}
 }
 
-func (b *zapCoreBridge) Check(entry zapcore.Entry, checked *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+func (b *zapCoreBridge) Check(entry zapcore.Entry, checked *zapcore.CheckedEntry) *zapcore.CheckedEntry { //nolint:gocritic // Standard signature
 	if b.Enabled(entry.Level) {
 		return checked.AddCore(entry, b)
 	}
 	return checked
 }
 
-func (b *zapCoreBridge) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+func (b *zapCoreBridge) Write(entry zapcore.Entry, fields []zapcore.Field) error { //nolint:gocritic // Standard signature
 	var event *zerolog.Event
-	switch entry.Level {
+	switch entry.Level { //nolint:revive // Standard switch over zapcore.Level
 	case zapcore.DebugLevel:
 		event = b.logger.Debug()
 	case zapcore.InfoLevel:
@@ -65,6 +65,8 @@ func (b *zapCoreBridge) Write(entry zapcore.Entry, fields []zapcore.Field) error
 		event = b.logger.Fatal()
 	case zapcore.DPanicLevel, zapcore.PanicLevel:
 		event = b.logger.Panic()
+	case zapcore.InvalidLevel:
+		event = b.logger.Info()
 	default:
 		event = b.logger.Info()
 	}
@@ -79,9 +81,11 @@ func (b *zapCoreBridge) Write(entry zapcore.Entry, fields []zapcore.Field) error
 	return nil
 }
 
-func (b *zapCoreBridge) Sync() error { return nil }
+func (b *zapCoreBridge) Sync() error { //nolint:revive // Implement interface
+	return nil
+}
 
-type zerologLike[T any] interface {
+type zerologLike[T any] interface { //nolint:interfacebloat // Generic interface for zerolog-like loggers
 	Bool(key string, val bool) T
 	Int8(key string, i int8) T
 	Int16(key string, i int16) T
@@ -99,129 +103,128 @@ type zerologLike[T any] interface {
 	Dur(key string, d time.Duration) T
 	Array(key string, arr zerolog.LogArrayMarshaler) T
 	Object(key string, obj zerolog.LogObjectMarshaler) T
-	Interface(key string, v interface{}) T
+	Interface(key string, v any) T
 	Err(err error) T
 }
 
-func addZapField[T any, Z zerologLike[T]](z Z, f *zapcore.Field) T {
-	switch f.Type {
-
+func addZapField[T any, Z zerologLike[T]](zevent Z, field *zapcore.Field) T {
+	switch field.Type { //nolint:revive // Standard switch over zapcore.Field.Type
 	// ─── Basic primitives ────────────────────────────────────────────────
 	case zapcore.BoolType:
-		return z.Bool(f.Key, f.Integer != 0)
+		return zevent.Bool(field.Key, field.Integer != 0)
 
 	case zapcore.StringType:
-		return z.Str(f.Key, f.String)
+		return zevent.Str(field.Key, field.String)
 
 	case zapcore.ByteStringType:
-		return z.Str(f.Key, string(f.Interface.([]byte)))
+		return zevent.Str(field.Key, string(field.Interface.([]byte))) //nolint:errcheck,forcetypeassert // We have type info
 
 	case zapcore.Int64Type:
-		return z.Int64(f.Key, f.Integer)
+		return zevent.Int64(field.Key, field.Integer)
 
 	case zapcore.Int32Type:
-		return z.Int32(f.Key, int32(f.Integer))
+		return zevent.Int32(field.Key, int32(field.Integer)) //nolint:gosec // We have type info
 
 	case zapcore.Int16Type:
-		return z.Int16(f.Key, int16(f.Integer))
+		return zevent.Int16(field.Key, int16(field.Integer)) //nolint:gosec // We have type info
 
 	case zapcore.Int8Type:
-		return z.Int8(f.Key, int8(f.Integer))
+		return zevent.Int8(field.Key, int8(field.Integer)) //nolint:gosec // We have type info
 
 	case zapcore.Uint64Type:
-		return z.Uint64(f.Key, uint64(f.Integer))
+		return zevent.Uint64(field.Key, uint64(field.Integer)) //nolint:gosec // We have type info
 
 	case zapcore.Uint32Type:
-		return z.Uint32(f.Key, uint32(f.Integer))
+		return zevent.Uint32(field.Key, uint32(field.Integer)) //nolint:gosec // We have type info
 
 	case zapcore.Uint16Type:
-		return z.Uint16(f.Key, uint16(f.Integer))
+		return zevent.Uint16(field.Key, uint16(field.Integer)) //nolint:gosec // We have type info
 
 	case zapcore.Uint8Type:
-		return z.Uint8(f.Key, uint8(f.Integer))
+		return zevent.Uint8(field.Key, uint8(field.Integer)) //nolint:gosec // We have type info
 
 	case zapcore.UintptrType:
-		return z.Uint64(f.Key, uint64(f.Integer))
+		return zevent.Uint64(field.Key, uint64(field.Integer)) //nolint:gosec // We have type info
 
 	// ─── Floating point and complex numbers ──────────────────────────────
 	case zapcore.Float64Type:
-		return z.Float64(f.Key, math.Float64frombits(uint64(f.Integer)))
+		return zevent.Float64(field.Key, math.Float64frombits(uint64(field.Integer))) //nolint:gosec // We have type info
 
 	case zapcore.Float32Type:
-		return z.Float32(f.Key, math.Float32frombits(uint32(f.Integer)))
+		return zevent.Float32(field.Key, math.Float32frombits(uint32(field.Integer))) //nolint:gosec // We have type info
 
 	case zapcore.Complex128Type:
-		return z.Str(f.Key, fmt.Sprintf("%v", f.Interface.(complex128)))
+		return zevent.Str(field.Key, fmt.Sprintf("%v", field.Interface.(complex128))) //nolint:errcheck,forcetypeassert // We have type info
 
 	case zapcore.Complex64Type:
-		return z.Str(f.Key, fmt.Sprintf("%v", f.Interface.(complex64)))
+		return zevent.Str(field.Key, fmt.Sprintf("%v", field.Interface.(complex64))) //nolint:errcheck,forcetypeassert // We have type info
 
 	// ─── Durations and times ─────────────────────────────────────────────
 	case zapcore.DurationType:
-		return z.Dur(f.Key, time.Duration(f.Integer))
+		return zevent.Dur(field.Key, time.Duration(field.Integer))
 
 	case zapcore.TimeType:
-		t := time.Unix(0, f.Integer)
-		if loc, ok := f.Interface.(*time.Location); ok {
+		t := time.Unix(0, field.Integer)
+		if loc, ok := field.Interface.(*time.Location); ok {
 			t = t.In(loc)
 		}
-		return z.Time(f.Key, t)
+		return zevent.Time(field.Key, t)
 
 	case zapcore.TimeFullType:
-		if t, ok := f.Interface.(time.Time); ok {
-			return z.Time(f.Key, t)
+		if t, ok := field.Interface.(time.Time); ok {
+			return zevent.Time(field.Key, t)
 		}
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 
 	// ─── Binary / reflection / stringers ─────────────────────────────────
 	case zapcore.BinaryType:
-		if b, ok := f.Interface.([]byte); ok {
-			return z.Bytes(f.Key, b)
+		if b, ok := field.Interface.([]byte); ok {
+			return zevent.Bytes(field.Key, b)
 		}
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 
 	case zapcore.ReflectType:
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 
 	case zapcore.StringerType:
-		if s, ok := f.Interface.(fmt.Stringer); ok {
-			return z.Str(f.Key, s.String())
+		if s, ok := field.Interface.(fmt.Stringer); ok {
+			return zevent.Str(field.Key, s.String())
 		}
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 
 	case zapcore.ErrorType:
-		if err, ok := f.Interface.(error); ok {
-			return z.Err(err)
+		if err, ok := field.Interface.(error); ok {
+			return zevent.Err(err)
 		}
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 
 	// ─── Object and array marshalers ─────────────────────────────────────
 	case zapcore.ObjectMarshalerType, zapcore.InlineMarshalerType:
-		if om, ok := f.Interface.(zapcore.ObjectMarshaler); ok {
+		if om, ok := field.Interface.(zapcore.ObjectMarshaler); ok {
 			adapter := zapObjectMarshalerAdapter{om}
-			return z.Object(f.Key, &adapter)
+			return zevent.Object(field.Key, &adapter)
 		}
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 
 	case zapcore.ArrayMarshalerType:
-		if am, ok := f.Interface.(zapcore.ArrayMarshaler); ok {
+		if am, ok := field.Interface.(zapcore.ArrayMarshaler); ok {
 			adapter := zapArrayMarshalerAdapter{am}
-			return z.Array(f.Key, &adapter)
+			return zevent.Array(field.Key, &adapter)
 		}
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 
 	// ─── Namespace handling ──────────────────────────────────────────────
 	case zapcore.NamespaceType:
 		// zerolog uses nested loggers for namespaces
-		return z.Str(f.Key, "")
+		return zevent.Str(field.Key, "")
 
 	// ─── Skip / unknown ──────────────────────────────────────────────────
 	case zapcore.SkipType, zapcore.UnknownType:
-		return z.Str(f.Key, "unknown_type")
+		return zevent.Str(field.Key, "unknown_type")
 
 	default:
 		// Safe fallback
-		return z.Interface(f.Key, f.Interface)
+		return zevent.Interface(field.Key, field.Interface)
 	}
 }
 
@@ -232,7 +235,7 @@ type zapObjectMarshalerAdapter struct {
 	m zapcore.ObjectMarshaler
 }
 
-func (a *zapObjectMarshalerAdapter) MarshalZerologObject(e *zerolog.Event) {
+func (a *zapObjectMarshalerAdapter) MarshalZerologObject(event *zerolog.Event) {
 	if a.m == nil {
 		return
 	}
@@ -240,13 +243,13 @@ func (a *zapObjectMarshalerAdapter) MarshalZerologObject(e *zerolog.Event) {
 	// Marshal into zap's built-in map encoder
 	mapEnc := zapcore.NewMapObjectEncoder()
 	if err := a.m.MarshalLogObject(mapEnc); err != nil {
-		e.Err(err)
+		event.Err(err)
 		return
 	}
 
 	// Dump all captured fields into Zerolog
 	for k, v := range mapEnc.Fields {
-		e.Interface(k, v)
+		event.Interface(k, v)
 	}
 }
 
@@ -263,10 +266,10 @@ func (a *zapArrayMarshalerAdapter) MarshalZerologArray(ae *zerolog.Array) {
 	}
 	// Use our ArrayEncoder that writes straight into zerolog.Array
 	encoder := zerologArrayEncoder{ae}
-	_ = a.m.MarshalLogArray(&encoder)
+	if err := a.m.MarshalLogArray(&encoder); err != nil {
+		ae.Err(err)
+	}
 }
-
-/***************  ArrayEncoder bridge  ****************/
 
 type zerologArrayEncoder struct {
 	ae *zerolog.Array
@@ -307,7 +310,7 @@ func (z *zerologArrayEncoder) AppendArray(m zapcore.ArrayMarshaler) error {
 	return nil
 }
 
-func (z *zerologArrayEncoder) AppendReflected(v interface{}) error {
+func (z *zerologArrayEncoder) AppendReflected(v any) error {
 	z.ae.Interface(v)
 	return nil
 }

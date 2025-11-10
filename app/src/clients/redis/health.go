@@ -77,7 +77,7 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 	if info != "" && strings.Contains(info, "loading:1") {
 		pingResult.SetPingOutput(
 			health.PingCauseUnstable,
-			fmt.Sprintf("redis is loading dataset into memory"),
+			"redis is loading dataset into memory",
 		)
 		return pingResult
 	}
@@ -87,6 +87,6 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 
 func uniquePingKey() string {
 	t := time.Now()
-	entropy := ulid.Monotonic(rand.New(rand.NewSource(t.UnixNano())), 0)
+	entropy := ulid.Monotonic(rand.New(rand.NewSource(t.UnixNano())), 0) //nolint:gosec // We use weak random for lightweight checks
 	return "ping:" + ulid.MustNew(ulid.Timestamp(t), entropy).String()
 }

@@ -1,12 +1,15 @@
-package static_address_translator
+package translator
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/yl2chen/cidranger"
 )
 
@@ -17,7 +20,9 @@ const (
 	internalAddressTypeHost
 	internalAddressTypeCIDR
 )
-const optionalPort = 0
+const optionalPort uint16 = 0
+
+var ErrPortOutOfRange = errors.New("port out of range")
 
 type parsedInternalAddress struct {
 	addressType internalAddressType
@@ -33,18 +38,18 @@ type parsedExternalAddress struct {
 func parsePort(portStr string) (uint16, error) {
 	port, err := strconv.ParseUint(portStr, 10, 16) // Parse as unsigned 16-bit integer
 	if err != nil {
-		return 0, fmt.Errorf("invalid port %s: %v", portStr, err)
+		return 0, fmt.Errorf("invalid port %s: %w", portStr, err)
 	}
 	// Ports 0-1023 are well-known/privileged, but still technically valid.
 	if port < 1 || port > 65535 {
-		return 0, fmt.Errorf("port out of range: %d", port)
+		return 0, fmt.Errorf("port %d: %w", port, ErrPortOutOfRange)
 	}
 
 	return uint16(port), nil
 }
 
 func parseInternalAddress(address string) (parsedInternalAddress, error) {
-	port := uint16(optionalPort)
+	port := optionalPort
 	main := address
 
 	// Split optional port
@@ -53,7 +58,7 @@ func parseInternalAddress(address string) (parsedInternalAddress, error) {
 		main = parts[0]
 		p, err := parsePort(parts[1])
 		if err != nil {
-			return parsedInternalAddress{}, fmt.Errorf("invalid port in internal address %s: %v", address, err)
+			return parsedInternalAddress{}, fmt.Errorf("invalid port in internal address %s: %w", address, err)
 		}
 		port = p
 	}
@@ -67,20 +72,20 @@ func parseInternalAddress(address string) (parsedInternalAddress, error) {
 	return parsedInternalAddress{addressType: internalAddressTypeHost, main: main, port: port}, nil
 }
 
-func parseExternalAddress(address string) (parsedExternalAddress, error) {
+func parseExternalAddress(address string, logger *zerolog.Logger) (parsedExternalAddress, error) {
 	host, portStr, err := net.SplitHostPort(address)
 	if err != nil {
-		return parsedExternalAddress{}, fmt.Errorf("failed to split external address '%s': %v", address, err)
+		return parsedExternalAddress{}, fmt.Errorf("failed to split external address '%s': %w", address, err)
 	}
 
 	port, err := parsePort(portStr)
 	if err != nil {
-		return parsedExternalAddress{}, fmt.Errorf("failed to parse port from external address '%s': %v", address, err)
+		return parsedExternalAddress{}, fmt.Errorf("failed to parse port from external address '%s': %w", address, err)
 	}
 
 	ip := net.ParseIP(host)
 	if ip == nil {
-		log.Printf("failed to parse IP from host '%s' of external address '%s'", host, address)
+		logger.Warn().Msgf("failed to parse IP from host '%s' of external address '%s'", host, address)
 	}
 
 	return parsedExternalAddress{ip: ip, port: port}, nil
@@ -109,33 +114,33 @@ func (e *cidrRangerHostEntry) Network() net.IPNet {
 type StaticAddressTranslator struct {
 	hostMapping map[string]addressMapping
 	cidrRanger  cidranger.Ranger
+	logger      zerolog.Logger
 }
 
-func NewStaticAddressTranslator(translations map[string]string) *StaticAddressTranslator {
+func NewStaticAddressTranslator(translations map[string]string, logger *zerolog.Logger) *StaticAddressTranslator {
 	translator := &StaticAddressTranslator{
-		hostMapping: map[string]addressMapping{},
+		hostMapping: make(map[string]addressMapping),
 		cidrRanger:  cidranger.NewPCTrieRanger(),
+		logger:      *logger,
 	}
 
-	seenCIDRs := map[string]bool{}
+	seenCIDRs := make(map[string]bool)
 
 	for internal, external := range translations {
 		internalAddress, err := parseInternalAddress(internal)
 		if err != nil {
-			log.Printf("Failed to parse internal translation address '%s': %v", internal, err)
+			translator.logger.Warn().Msgf("Failed to parse internal translation address '%s': %v", internal, err)
 			continue
 		}
-		externalAddress, err := parseExternalAddress(external)
+		externalAddress, err := parseExternalAddress(external, &translator.logger)
 		if err != nil {
-			log.Printf("Failed to parse external translation address '%s' associated with internal address '%s': %v",
+			translator.logger.Warn().Msgf("Failed to parse external translation address '%s' associated with internal address '%s': %v",
 				external, internal, err)
 			continue
 		}
 
 		switch internalAddress.addressType {
-		case internalAddressTypeIP:
-			fallthrough
-		case internalAddressTypeHost:
+		case internalAddressTypeIP, internalAddressTypeHost:
 			var ip net.IP
 			if internalAddress.addressType == internalAddressTypeIP {
 				ip = net.ParseIP(internalAddress.main)
@@ -143,7 +148,7 @@ func NewStaticAddressTranslator(translations map[string]string) *StaticAddressTr
 
 			lookupKey := fmt.Sprintf("%s:%d", internalAddress.main, internalAddress.port)
 			if _, exists := translator.hostMapping[lookupKey]; exists {
-				log.Printf("Skipping duplicate lookup key '%s' associated with mapping: '%s' -> '%s'", lookupKey, internal, external)
+				translator.logger.Debug().Msgf("Skipping duplicate lookup key '%s' associated with mapping: '%s' -> '%s'", lookupKey, internal, external)
 				continue
 			}
 
@@ -159,16 +164,19 @@ func NewStaticAddressTranslator(translations map[string]string) *StaticAddressTr
 					port: externalAddress.port,
 				},
 			}
-			break
 
 		case internalAddressTypeCIDR:
 			if _, seen := seenCIDRs[internalAddress.main]; seen {
-				log.Printf("Skipping duplicate CIDR entry '%s' associated with mapping: '%s' -> '%s'", internalAddress.main, internal, external)
+				translator.logger.Debug().Msgf("Skipping duplicate CIDR entry '%s' associated with mapping: '%s' -> '%s'", internalAddress.main, internal, external)
 				continue
 			}
 			seenCIDRs[internalAddress.main] = true
 
-			ip, network, _ := net.ParseCIDR(internalAddress.main)
+			ip, network, err := net.ParseCIDR(internalAddress.main)
+			if err != nil {
+				translator.logger.Warn().Msgf("Failed to parse CIDR '%s' for internal address '%s': %v", internalAddress.main, internal, err)
+				continue
+			}
 
 			err = translator.cidrRanger.Insert(&cidrRangerHostEntry{
 				network: *network,
@@ -186,33 +194,38 @@ func NewStaticAddressTranslator(translations map[string]string) *StaticAddressTr
 				},
 			})
 			if err != nil {
-				log.Printf("Failed to insert CIDR entry for CIDR '%s': %v", internalAddress.main, err)
+				translator.logger.Warn().Msgf("Failed to insert CIDR entry for CIDR '%s': %v", internalAddress.main, err)
 				continue
 			}
 
-			break
+		default:
+			translator.logger.Warn().Msgf("Unknown internal address type for address '%s'", internal)
 		}
 	}
 
 	return translator
 }
 
-func (s *StaticAddressTranslator) Translate(originalIP net.IP, originalPort int) (net.IP, int) {
+func (s *StaticAddressTranslator) Translate(originalIP net.IP, originalPort uint16) (translatedIP net.IP, translatedPort uint16) {
 	// Attempt to find a direct match
 	hostnames := []string{originalIP.String()}
-	addresses, err := net.LookupAddr(hostnames[0])
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var r net.Resolver
+	addresses, err := r.LookupAddr(ctx, hostnames[0])
 	if err == nil && len(addresses) > 0 {
 		for _, n := range addresses {
 			hostnames = append(hostnames, strings.Trim(n, "."))
 		}
 	}
 
-	lookupPorts := []int{originalPort, optionalPort}
+	lookupPorts := []uint16{originalPort, optionalPort}
 	for _, hostname := range hostnames {
 		for _, lookupPort := range lookupPorts {
 			lookupKey := fmt.Sprintf("%s:%d", hostname, lookupPort)
 			if translation, ok := s.hostMapping[lookupKey]; ok {
-				return translation.external.ip, int(translation.external.port)
+				return translation.external.ip, translation.external.port
 			}
 		}
 	}
@@ -221,13 +234,18 @@ func (s *StaticAddressTranslator) Translate(originalIP net.IP, originalPort int)
 	entries, err := s.cidrRanger.ContainingNetworks(originalIP)
 	if err == nil {
 		for _, entry := range entries {
-			translation := entry.(*cidrRangerHostEntry)
-			if translation.internal.port == optionalPort || translation.internal.port == uint16(originalPort) {
-				return translation.external.ip, int(translation.external.port)
+			translation, ok := entry.(*cidrRangerHostEntry)
+			if !ok {
+				s.logger.Warn().Msgf("entry type assertion to 'cidrRangerHostEntry' failed for IP '%s'", originalIP)
+				continue
+			}
+
+			if translation.internal.port == optionalPort || translation.internal.port == originalPort {
+				return translation.external.ip, translation.external.port
 			}
 		}
 	} else {
-		log.Printf("CIDR ranger lookup error for IP '%s': %v", originalIP, err)
+		s.logger.Warn().Msgf("CIDR ranger lookup error for IP '%s': %v", originalIP, err)
 	}
 
 	// No translation found, return original

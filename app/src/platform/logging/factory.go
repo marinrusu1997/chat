@@ -38,7 +38,7 @@ type Options struct {
 	PrettyPrint   bool
 }
 
-func NewFactory(options Options) (*LoggerFactory, error) {
+func NewFactory(options *Options) (*LoggerFactory, error) {
 	errorBuilder := oops.
 		In("loggers factory").
 		Tags("constructor")
@@ -53,14 +53,14 @@ func NewFactory(options Options) (*LoggerFactory, error) {
 		logContext = zerolog.New(zerolog.ConsoleWriter{
 			Out:           os.Stdout,
 			TimeFormat:    time.RFC3339,
-			TimeLocation:  time.Local,
+			TimeLocation:  time.UTC,
 			PartsOrder:    []string{"time", "logger", "level", "message", "fields"},
 			FieldsExclude: []string{"app-build-date", "app-commit", "app-version", "app-instance", "logger"},
-			FormatTimestamp: func(i interface{}) string {
-				return "\033[90m" + i.(string) + "\033[0m" // dim gray timestamp
+			FormatTimestamp: func(ts any) string {
+				return "\033[90m" + ts.(string) + "\033[0m" //nolint:errcheck,forcetypeassert // we know ts is string
 			},
-			FormatLevel: func(i interface{}) string {
-				level := strings.ToUpper(i.(string))
+			FormatLevel: func(level any) string {
+				level = strings.ToUpper(level.(string)) //nolint:errcheck,forcetypeassert // we know level is string
 				var color string
 				switch level {
 				case "DEBUG":
@@ -79,27 +79,27 @@ func NewFactory(options Options) (*LoggerFactory, error) {
 				s := fmt.Sprintf("%s%-5s\033[0m", color, level)
 				return s
 			},
-			FormatCaller: func(i interface{}) string {
+			FormatCaller: func(i any) string {
 				return fmt.Sprintf("\033[90m%s\033[0m", i)
 			},
-			FormatMessage: func(i interface{}) string {
+			FormatMessage: func(i any) string {
 				return fmt.Sprintf(": %v", i)
 			},
-			FormatFieldName: func(i interface{}) string {
+			FormatFieldName: func(i any) string {
 				return fmt.Sprintf("\033[1m%s\033[0m=", i)
 			},
-			FormatFieldValue: func(i interface{}) string {
-				switch v := i.(type) {
+			FormatFieldValue: func(i any) string {
+				switch itype := i.(type) {
 				case []byte:
-					if isPrintable(v) {
-						return string(v)
+					if isPrintable(itype) {
+						return string(itype)
 					}
-					return fmt.Sprintf("%v", v)
+					return fmt.Sprintf("%v", itype)
 				default:
-					return fmt.Sprintf("%v", v)
+					return fmt.Sprintf("%v", itype)
 				}
 			},
-			FormatPartValueByName: func(val interface{}, part string) string {
+			FormatPartValueByName: func(val any, part string) string {
 				switch part {
 				case "logger":
 					s := fmt.Sprintf("\033[4;34m%s\033[0m", val)
@@ -156,15 +156,15 @@ func NewFactory(options Options) (*LoggerFactory, error) {
 
 type LoggerOption func(ctx *zerolog.Context) zerolog.Context
 
-func WithField(key string, value interface{}) LoggerOption {
+func WithField(key string, value any) LoggerOption {
 	return func(c *zerolog.Context) zerolog.Context {
 		return c.Interface(key, value)
 	}
 }
 
-func (registry *LoggerFactory) Child(name string, opts ...LoggerOption) zerolog.Logger {
-	level := registry.getLevel(name)
-	child := registry.root.With().Str("logger", name)
+func (lf *LoggerFactory) Child(name string, opts ...LoggerOption) zerolog.Logger {
+	level := lf.getLevel(name)
+	child := lf.root.With().Str("logger", name)
 
 	for _, opt := range opts {
 		child = opt(&child)
@@ -173,18 +173,18 @@ func (registry *LoggerFactory) Child(name string, opts ...LoggerOption) zerolog.
 	return child.Logger().Level(level)
 }
 
-func (registry *LoggerFactory) getLevel(name string) zerolog.Level {
-	if lvl, ok := registry.level.literal[name]; ok {
+func (lf *LoggerFactory) getLevel(name string) zerolog.Level {
+	if lvl, ok := lf.level.literal[name]; ok {
 		return lvl
 	}
 
-	for _, rule := range registry.level.regex {
+	for _, rule := range lf.level.regex {
 		if rule.regexp.MatchString(name) {
 			return rule.level
 		}
 	}
 
-	return registry.root.GetLevel()
+	return lf.root.GetLevel()
 }
 
 func isPrintable(b []byte) bool {

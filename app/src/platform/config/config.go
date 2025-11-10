@@ -9,29 +9,29 @@ type CredentialsConfig struct {
 	Password util.Secret `koanf:"password" validate:"required,min=4,max=64"`
 }
 
-type TlsPathsConfig struct {
+type TLSPathsConfig struct {
 	Truststore  util.Secret `koanf:"truststore"`
 	Certificate util.Secret `koanf:"certificate"`
 	Key         util.Secret `koanf:"key"`
 }
 
 type EtcdConfig struct {
-	TlsPathsConfig `koanf:",squash"`
+	TLSPathsConfig `koanf:",squash"`
 	Endpoints      []string `koanf:"endpoints" validate:"required,min=1,max=10,unique,dive,required,https_url"`
 }
 
 type PostgreSQLConfig struct {
 	CredentialsConfig `koanf:",squash"`
-	TlsPathsConfig    `koanf:",squash"`
+	TLSPathsConfig    `koanf:",squash"`
 	Host              string            `koanf:"host" validate:"required,hostname|ip"`
 	Port              uint16            `koanf:"port" validate:"required,port"`
-	DbName            string            `koanf:"dbname" validate:"required,min=4,max=64"`
+	DBName            string            `koanf:"dbname" validate:"required,min=4,max=64"`
 	Options           map[string]string `koanf:"options" validate:"dive,keys,required,min=4,max=64,endkeys,required,min=1,max=64"`
 }
 
 type ScyllaDBConfig struct {
 	CredentialsConfig `koanf:",squash"`
-	TlsPathsConfig    `koanf:",squash"`
+	TLSPathsConfig    `koanf:",squash"`
 	Hosts             []string `koanf:"hosts" validate:"required,min=1,max=10,unique,dive,required,hostname|ip"`
 	ShardAwarePort    uint16   `koanf:"shard_aware_port" validate:"required,port"`
 	LocalDC           string   `koanf:"local_dc" validate:"omitempty,min=3,max=64,alphanum"`
@@ -40,13 +40,13 @@ type ScyllaDBConfig struct {
 
 type RedisConfig struct {
 	CredentialsConfig `koanf:",squash"`
-	TlsPathsConfig    `koanf:",squash"`
+	TLSPathsConfig    `koanf:",squash"`
 	Addresses         []string `koanf:"addresses" validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
 }
 
 type ElasticsearchConfig struct {
 	CredentialsConfig `koanf:",squash"`
-	TlsPathsConfig    `koanf:",squash"`
+	TLSPathsConfig    `koanf:",squash"`
 	Addresses         []string `koanf:"addresses" validate:"required,min=1,max=10,unique,dive,required,http_url|https_url"`
 	ShouldLogReq      bool     `koanf:"should_log_req"`
 	ShouldLogRes      bool     `koanf:"should_log_res"`
@@ -54,13 +54,13 @@ type ElasticsearchConfig struct {
 
 type Neo4jConfig struct {
 	CredentialsConfig `koanf:",squash"`
-	TlsPathsConfig    `koanf:",squash"`
-	Uri               string `koanf:"uri" validate:"required,uri,startswith=neo4j"`
+	TLSPathsConfig    `koanf:",squash"`
+	URI               string `koanf:"uri" validate:"required,uri,startswith=neo4j"`
 	DatabaseName      string `koanf:"database_name" validate:"required,min=4,max=64,alphanum"`
 }
 
 type KafkaConfig struct {
-	TlsPathsConfig `koanf:",squash"`
+	TLSPathsConfig `koanf:",squash"`
 	SeedBrokers    []string          `koanf:"seed_brokers" validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
 	Users          KafkaUsers        `koanf:"users" validate:"required"`
 	Topics         KafkaConfigTopics `koanf:"topics" validate:"required"`
@@ -86,7 +86,7 @@ type LoggingConfig struct {
 }
 
 type ApplicationConfig struct {
-	TlsPathsConfig `koanf:",squash"`
+	TLSPathsConfig `koanf:",squash"`
 	InstanceName   string
 	Version        string
 	Commit         string

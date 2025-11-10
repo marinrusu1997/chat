@@ -12,7 +12,6 @@ import (
 const (
 	PingTargetName               = "neo4j"
 	pingShallowAcceptableLatency = 50 * time.Millisecond
-	pingDeepAcceptableLatency    = 150 * time.Second
 )
 
 func (c *Client) PingShallow(ctx context.Context) health.PingResult {

@@ -3,6 +3,7 @@ package scylla
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +23,8 @@ import (
 // @FIXME connect to all nodes in the cluster, not just one, to improve performance and availability via token aware routing
 // @FIXME avoid using multi-partition reads: IN queries (e.g. IN (1,2,3)), they are not token aware
 //        better use multiple single partition prepared statements queries in parallel
+
+var ErrAlreadyStarted = errors.New("scylla client already started")
 
 type Client struct {
 	logger zerolog.Logger
@@ -46,7 +49,7 @@ type ClientOptions struct {
 	Logger            ClientLoggerOptions
 }
 
-func NewClient(options ClientOptions) *Client {
+func NewClient(options *ClientOptions) *Client {
 	clusterConfig := gocql.NewCluster(options.Hosts...)
 
 	// Set up the host selection policy to be token-aware with a DC-aware fallback.
@@ -110,12 +113,12 @@ func NewClient(options ClientOptions) *Client {
 
 func (c *Client) Start(_ context.Context) error {
 	if c.Driver != nil {
-		return fmt.Errorf("scylla driver already started")
+		return ErrAlreadyStarted
 	}
 
 	session, err := c.config.CreateSession()
 	if err != nil {
-		return fmt.Errorf("failed to create scylla session: %v", err)
+		return fmt.Errorf("failed to create scylla session: %w", err)
 	}
 
 	c.Driver = session
@@ -136,21 +139,21 @@ type zerologAdapter struct {
 	logger zerolog.Logger
 }
 
-func (a *zerologAdapter) Print(v ...interface{}) {
+func (a *zerologAdapter) Print(v ...any) {
 	if len(v) > 0 {
 		a.detectLevel(v[0]).Msg(fmt.Sprint(v...))
 	}
 }
 
-func (a *zerologAdapter) Printf(format string, v ...interface{}) {
+func (a *zerologAdapter) Printf(format string, v ...any) {
 	a.detectLevel(format).Msgf(strings.TrimSpace(format), v...)
 }
 
-func (a *zerologAdapter) Println(v ...interface{}) {
+func (a *zerologAdapter) Println(v ...any) {
 	a.Print(v...)
 }
 
-func (a *zerologAdapter) detectLevel(v interface{}) *zerolog.Event {
+func (a *zerologAdapter) detectLevel(v any) *zerolog.Event {
 	first, ok := v.(string)
 	if !ok {
 		first = fmt.Sprint(v)

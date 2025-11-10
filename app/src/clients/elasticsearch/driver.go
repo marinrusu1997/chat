@@ -3,6 +3,7 @@ package elasticsearch
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -17,6 +18,8 @@ import (
 //   All search queries from your application must be modified to filter out these documents (e.g., must_not: { exists: { field: "deleted_at" } }).
 // @FIXME When storing messages, use ?_source_excludes=content parameter in the URL to avoid leaking cleartext content in _source field.
 //   Also, use message_id "https://es-coordinating-1:9200/chat-messages/_doc/${message_id}"
+
+var ErrAlreadyStarted = errors.New("elasticsearch client already started")
 
 type Client struct {
 	logger zerolog.Logger
@@ -39,7 +42,7 @@ type ClientOptions struct {
 	ShouldLogRes bool
 }
 
-func NewClient(options ClientOptions) *Client {
+func NewClient(options *ClientOptions) *Client {
 	// 1. Performance: Tune the underlying HTTP Transport
 	transport := &http.Transport{
 		TLSClientConfig:     options.TLSConfig,
@@ -92,7 +95,7 @@ func NewClient(options ClientOptions) *Client {
 
 func (c *Client) Start(_ context.Context) error {
 	if c.Driver != nil {
-		return fmt.Errorf("elasticsearch driver already started")
+		return ErrAlreadyStarted
 	}
 
 	client, err := elasticsearch.NewClient(c.config)

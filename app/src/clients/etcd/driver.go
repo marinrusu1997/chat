@@ -3,6 +3,7 @@ package etcd
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
+
+var ErrAlreadyStarted = errors.New("etcd client already started")
 
 type Client struct {
 	logger zerolog.Logger
@@ -29,7 +32,7 @@ type ClientOptions struct {
 	Logger    ClientLoggerOptions
 }
 
-func NewClient(options ClientOptions) *Client {
+func NewClient(options *ClientOptions) *Client {
 	return &Client{
 		logger: options.Logger.Client,
 		config: clientv3.Config{
@@ -67,7 +70,7 @@ func NewClient(options ClientOptions) *Client {
 
 func (c *Client) Start(_ context.Context) error {
 	if c.Driver != nil {
-		return fmt.Errorf("etcd driver already started")
+		return ErrAlreadyStarted
 	}
 
 	client, err := clientv3.New(c.config)

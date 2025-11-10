@@ -120,12 +120,12 @@ var (
 )
 
 func init() {
-	errorPatterns := make([]string, len(patternCauses))
-	causeByIndex = make([]PingCause, len(patternCauses))
+	errorPatterns := make([]string, 0, len(patternCauses))
+	causeByIndex = make([]PingCause, 0, len(patternCauses))
 
-	for i, p := range patternCauses {
-		errorPatterns[i] = p.pattern
-		causeByIndex[i] = p.cause
+	for _, p := range patternCauses {
+		errorPatterns = append(errorPatterns, p.pattern)
+		causeByIndex = append(causeByIndex, p.cause)
 	}
 
 	matcher = ahocorasick.NewTrieBuilder().
