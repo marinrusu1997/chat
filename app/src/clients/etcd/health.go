@@ -12,7 +12,7 @@ import (
 
 const (
 	PingTargetName            = "etcd"
-	pingDeepAcceptableLatency = 150 * time.Second
+	pingDeepAcceptableLatency = 150 * time.Millisecond
 	acceptableDBUsageRatio    = 0.8
 )
 

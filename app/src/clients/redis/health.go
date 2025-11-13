@@ -14,7 +14,7 @@ import (
 const (
 	PingTargetName               = "redis"
 	pingShallowAcceptableLatency = 25 * time.Millisecond
-	pingDeepAcceptableLatency    = 50 * time.Second
+	pingDeepAcceptableLatency    = 50 * time.Millisecond
 )
 
 func (c *Client) PingShallow(ctx context.Context) health.PingResult {

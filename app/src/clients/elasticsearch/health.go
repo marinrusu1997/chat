@@ -12,7 +12,7 @@ import (
 const (
 	PingTargetName                      = "elasticsearch"
 	pingShallowAcceptableLatency        = 50 * time.Millisecond
-	pingDeepAcceptableLatency           = 150 * time.Second
+	pingDeepAcceptableLatency           = 150 * time.Millisecond
 	degradedNumberOfPendingTasks        = 100
 	degradedNumberOfInFlightFetch       = 50
 	degradedTaskMaxWaitingInQueueMillis = 2000

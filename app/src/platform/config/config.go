@@ -59,6 +59,12 @@ type Neo4jConfig struct {
 	DatabaseName      string `koanf:"database_name" validate:"required,min=4,max=64,alphanum"`
 }
 
+type NatsConfig struct {
+	CredentialsConfig `koanf:",squash"`
+	TLSPathsConfig    `koanf:",squash"`
+	Servers           []string `koanf:"servers" validate:"required,min=1,max=10,unique,dive,required,uri,startswith=nats"`
+}
+
 type KafkaConfig struct {
 	TLSPathsConfig `koanf:",squash"`
 	SeedBrokers    []string          `koanf:"seed_brokers" validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
@@ -101,6 +107,7 @@ type Config struct {
 	Redis         RedisConfig         `koanf:"redis" validate:"required"`
 	Elasticsearch ElasticsearchConfig `koanf:"elasticsearch" validate:"required"`
 	Neo4j         Neo4jConfig         `koanf:"neo4j" validate:"required"`
+	Nats          NatsConfig          `koanf:"nats" validate:"required"`
 	Kafka         KafkaConfig         `koanf:"kafka" validate:"required"`
 	Logging       LoggingConfig       `koanf:"logging" validate:"required"`
 }

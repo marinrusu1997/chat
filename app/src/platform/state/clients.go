@@ -4,6 +4,7 @@ import (
 	"chat/src/clients/elasticsearch"
 	"chat/src/clients/etcd"
 	"chat/src/clients/kafka"
+	"chat/src/clients/nats"
 	"chat/src/clients/neo4j"
 	"chat/src/clients/postgresql"
 	"chat/src/clients/redis"
@@ -32,6 +33,7 @@ type StorageClients struct {
 	PostgreSQL    *postgresql.Client
 	Redis         *redis.Client
 	ScyllaDB      *scylla.Client
+	Nats          *nats.Client
 	Kafka         KafkaClients
 }
 
@@ -117,6 +119,16 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 		},
 	})
 
+	// Nats Client
+	natsClient := nats.NewClient(&nats.ClientOptions{
+		Servers:    config.Nats.Servers,
+		TLSConfig:  tlsConfig[nats.PingTargetName],
+		ClientName: config.Application.InstanceName,
+		Username:   config.Nats.Username,
+		Password:   string(config.Nats.Password),
+		Logger:     loggerFactory.Child("client.nats"),
+	})
+
 	// @FIXME Kafka Clients
 
 	return &StorageClients{
@@ -126,6 +138,7 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 		PostgreSQL:    postgresClient,
 		Redis:         redisClient,
 		ScyllaDB:      scyllaClient,
+		Nats:          natsClient,
 		Kafka: KafkaClients{
 			Admin:    nil, // @FIXME create kafka admin client
 			Producer: nil, // @FIXME create kafka admin client

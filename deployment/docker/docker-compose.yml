@@ -55,6 +55,12 @@ networks:
       driver: default
       config:
         - subnet: 172.25.0.0/16
+  nats_backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.26.0.0/16
 
 volumes:
   etcd-data-1:
@@ -84,7 +90,9 @@ volumes:
   kafka-data-1:
   kafka-data-2:
   kafka-data-3:
-  kafka_secrets:
+  nats-data-1:
+  nats-data-2:
+  nats-data-3:
   prometheus-data:
   grafana-data:
 
@@ -149,6 +157,14 @@ x-kafka-dependencies: &kafka-dependencies
   kafka2:
     condition: service_healthy
   kafka3:
+    condition: service_healthy
+
+x-nats-dependencies: &nats-dependencies
+  nats-node-1:
+    condition: service_healthy
+  nats-node-2:
+    condition: service_healthy
+  nats-node-3:
     condition: service_healthy
 
 services:
@@ -2000,6 +2016,135 @@ services:
     cpus: 2
     depends_on: *kafka-dependencies
 
+  nats-node-1:
+    build:
+      context: ./nats
+    container_name: nats-node-1
+    hostname: nats-node-1
+    logging: *default-logging
+    networks:
+      - nats_backend_network
+    volumes:
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/nats/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/nats-node-1/private.key:/etc/nats/certs/private.key:ro
+      - ./cert-generator/output/services/nats-node-1/public.crt:/etc/nats/certs/public.crt:ro
+      # Data
+      - nats-data-1:/var/lib/nats/jetstream
+    command: >
+      --https_port 8222
+      --server_name nats-node-1
+      --cluster_name chat-cluster
+      --cluster_listen nats://0.0.0.0:6222
+      --cluster_advertise nats-node-1:6222
+      --routes nats://localhost:6222
+      --tlsverify
+      --tlscert /etc/nats/certs/public.crt
+      --tlskey /etc/nats/certs/private.key
+      --tlscacert /etc/nats/certs/ca/public.crt
+      --user ${NATS_CHAT_APP_USER_USERNAME}
+      --pass ${NATS_CHAT_APP_USER_PASSWORD}
+      --jetstream
+      --store_dir /var/lib/nats/jetstream
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "4222" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: "no"
+    mem_limit: 2GB
+    cpus: 4
+
+  nats-node-2:
+    build:
+      context: ./nats
+    container_name: nats-node-2
+    hostname: nats-node-2
+    logging: *default-logging
+    networks:
+      - nats_backend_network
+    volumes:
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/nats/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/nats-node-2/private.key:/etc/nats/certs/private.key:ro
+      - ./cert-generator/output/services/nats-node-2/public.crt:/etc/nats/certs/public.crt:ro
+      # Data
+      - nats-data-2:/var/lib/nats/jetstream
+    command: >
+      --https_port 8222
+      --server_name nats-node-2
+      --cluster_name chat-cluster
+      --cluster_listen nats://0.0.0.0:6222
+      --cluster_advertise nats-node-2:6222
+      --routes nats://nats-node-1:6222
+      --tlsverify
+      --tlscert /etc/nats/certs/public.crt
+      --tlskey /etc/nats/certs/private.key
+      --tlscacert /etc/nats/certs/ca/public.crt
+      --user ${NATS_CHAT_APP_USER_USERNAME}
+      --pass ${NATS_CHAT_APP_USER_PASSWORD}
+      --jetstream
+      --store_dir /var/lib/nats/jetstream
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 4222 && test $(curl -s --cacert /etc/nats/certs/ca/public.crt --cert /etc/nats/certs/public.crt --key /etc/nats/certs/private.key https://nats-node-2:8222/routez | jq 
+      -r '.num_routes') -ge 2" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: "no"
+    mem_limit: 2GB
+    cpus: 4
+    depends_on:
+      nats-node-1:
+        condition: service_healthy
+
+  nats-node-3:
+    build:
+      context: ./nats
+    container_name: nats-node-3
+    hostname: nats-node-3
+    logging: *default-logging
+    networks:
+      - nats_backend_network
+    volumes:
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/nats/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/nats-node-3/private.key:/etc/nats/certs/private.key:ro
+      - ./cert-generator/output/services/nats-node-3/public.crt:/etc/nats/certs/public.crt:ro
+      # Data
+      - nats-data-3:/var/lib/nats/jetstream
+    command: >
+      --https_port 8222
+      --server_name nats-node-3
+      --cluster_name chat-cluster
+      --cluster_listen nats://0.0.0.0:6222
+      --cluster_advertise nats-node-3:6222
+      --routes nats://nats-node-1:6222
+      --tlsverify
+      --tlscert /etc/nats/certs/public.crt
+      --tlskey /etc/nats/certs/private.key
+      --tlscacert /etc/nats/certs/ca/public.crt
+      --user ${NATS_CHAT_APP_USER_USERNAME}
+      --pass ${NATS_CHAT_APP_USER_PASSWORD}
+      --jetstream
+      --store_dir /var/lib/nats/jetstream
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 4222 && test $(curl -s --cacert /etc/nats/certs/ca/public.crt --cert /etc/nats/certs/public.crt --key /etc/nats/certs/private.key 
+      https://nats-node-3:8222/routez | jq 
+            -r '.num_routes') -ge 2" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: "no"
+    mem_limit: 2GB
+    cpus: 4
+    depends_on:
+      nats-node-1:
+        condition: service_healthy
+
   prometheus:
     image: 'prom/prometheus:v3.5.0'
     container_name: prometheus
@@ -2071,6 +2216,7 @@ services:
       - elasticsearch_backend_network
       - neo4j_backend_network
       - kafka_backend_network
+      - nats_backend_network
       - chat_app_network
     volumes:
       # Source code
@@ -2110,7 +2256,9 @@ services:
         condition: service_healthy
       scylla-setup:
         condition: service_healthy
-      <<: *redis-dependencies
+      <<:
+        - *redis-dependencies
+        - *nats-dependencies
       es-filebeat:
         condition: service_healthy
       neo4j-node-1:

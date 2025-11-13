@@ -32,6 +32,9 @@ SERVICES=(
 	"redis-node-4"
 	"redis-node-5"
 	"redis-node-6"
+	"nats-node-1"
+	"nats-node-2"
+	"nats-node-3"
 	"chat-app-1"
 )
 

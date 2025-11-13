@@ -12,7 +12,7 @@ import (
 const (
 	PingTargetName               = "kafka"
 	pingShallowAcceptableLatency = 50 * time.Millisecond
-	pingDeepAcceptableLatency    = 150 * time.Second
+	pingDeepAcceptableLatency    = 150 * time.Millisecond
 )
 
 func (c *Client) PingShallow(ctx context.Context) health.PingResult {
@@ -37,6 +37,7 @@ func (c *Client) PingDeep(ctx context.Context) health.PingResult {
 
 	var req kmsg.MetadataRequest
 	req.Default()
+	req.Topics = make([]kmsg.MetadataRequestTopic, 0)
 	metadata, err := c.Driver.RequestCachedMetadata(ctx, &req, -1)
 	pingResult.StoreComputedLatency(pingDeepAcceptableLatency)
 

@@ -4,6 +4,7 @@ import (
 	"chat/src/clients/elasticsearch"
 	"chat/src/clients/etcd"
 	"chat/src/clients/kafka"
+	"chat/src/clients/nats"
 	"chat/src/clients/neo4j"
 	"chat/src/clients/postgresql"
 	"chat/src/clients/redis"
@@ -118,6 +119,16 @@ func main() {
 					RequireMutualTLS: true,
 				},
 			},
+			nats.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore:  string(cfg.Nats.Truststore),
+					Certificate: string(cfg.Nats.Certificate),
+					Key:         string(cfg.Nats.Key),
+				},
+				Policy: security.TLSPolicy{
+					RequireMutualTLS: true,
+				},
+			},
 		},
 	})
 	if err != nil {
@@ -138,6 +149,7 @@ func main() {
 			postgresql.PingTargetName: storageClients.PostgreSQL,
 			redis.PingTargetName:      storageClients.Redis,
 			scylla.PingTargetName:     storageClients.ScyllaDB,
+			nats.PingTargetName:       storageClients.Nats,
 		},
 		Logger: loggerFactory.Child("lifecycle.controller"),
 	})
@@ -158,6 +170,7 @@ func main() {
 			postgresql.PingTargetName: storageClients.PostgreSQL,
 			redis.PingTargetName:      storageClients.Redis,
 			scylla.PingTargetName:     storageClients.ScyllaDB,
+			nats.PingTargetName:       storageClients.Nats,
 		},
 		Logger: loggerFactory.Child("health.controller"),
 	})

@@ -34,6 +34,14 @@ scylladb:
   username: "chat_rw"
   password: "yT3-4d5dQiD6S-yHfThN"
 
+nats:
+  servers:
+    - "nats://nats-node-1:4222"
+    - "nats://nats-node-2:4222"
+    - "nats://nats-node-3:4222"
+  username: "chat_app_user"
+  password: "sY3-0zL1xX5b78vGf9qJ"
+
 redis:
   addresses:
     - "redis-node-1:6379"

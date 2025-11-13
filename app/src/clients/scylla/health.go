@@ -10,7 +10,7 @@ import (
 const (
 	PingTargetName               = "scylla"
 	pingShallowAcceptableLatency = 50 * time.Millisecond
-	pingDeepAcceptableLatency    = 150 * time.Second
+	pingDeepAcceptableLatency    = 150 * time.Millisecond
 )
 
 func (c *Client) PingShallow(ctx context.Context) health.PingResult {

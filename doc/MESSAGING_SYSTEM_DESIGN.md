@@ -35,11 +35,11 @@ All inter-replica message routing uses **Kafka** for durability, ordering, and r
 ### Topics
 To avoid topic explosion, we define a limited set of high-throughput topics:
 
-| Topic | Purpose |
-|--------|----------|
-| `user-inbox` | Direct user-to-user messages |
-| `group-inbox` | Group messages |
-| `delivery-receipts` | Internal system topic for ACK and receipt updates |
+| Topic                | Purpose                                              |
+|----------------------|------------------------------------------------------|
+| `user-inbox`         | Direct user-to-user messages                         |
+| `group-inbox`        | Group messages                                       |
+| `delivery-receipts`  | Internal system topic for ACK and receipt updates    |
 | `user-notifications` | Notifications to senders about delivery/read updates |
 
 ---
@@ -101,11 +101,11 @@ Replica updates delivery states and reconciles them in ScyllaDB.
 ### Delivery Pipeline
 Receipts are produced to the `delivery-receipts` topic with statuses:
 
-| Status | Trigger |
-|---------|----------|
-| `RECEIVED` | Replica stored message in ScyllaDB and produced to Kafka |
+| Status      | Trigger                                                     |
+|-------------|-------------------------------------------------------------|
+| `RECEIVED`  | Replica stored message in ScyllaDB and produced to Kafka    |
 | `DELIVERED` | Message successfully sent via WebSocket and ACKed by client |
-| `READ` | User explicitly read message (via WebSocket or API) |
+| `READ`      | User explicitly read message (via WebSocket or API)         |
 
 ### Offline Behavior
 - Offline users → only `RECEIVED` status recorded initially.
@@ -114,20 +114,20 @@ Receipts are produced to the `delivery-receipts` topic with statuses:
 ### ScyllaDB Tables
 
 #### `message-receipts`
-| Column | Description |
-|---------|-------------|
-| `chat_id`, `message_id`, `user_id` | Primary keys |
-| `status` | `"RECEIVED"`, `"DELIVERED"`, `"READ"` |
-| `channel` | `"ws"`, `"apn"`, etc. |
-| `updated_at` | Timestamp |
-| TTL | 7 days |
+| Column                             | Description                           |
+|------------------------------------|---------------------------------------|
+| `chat_id`, `message_id`, `user_id` | Primary keys                          |
+| `status`                           | `"RECEIVED"`, `"DELIVERED"`, `"READ"` |
+| `channel`                          | `"ws"`, `"apn"`, etc.                 |
+| `updated_at`                       | Timestamp                             |
+| TTL                                | 7 days                                |
 
 #### `chat-read-pointers`
-| Column | Description |
-|---------|-------------|
-| `chat_id`, `user_id` | Primary keys |
+| Column                 | Description               |
+|------------------------|---------------------------|
+| `chat_id`, `user_id`   | Primary keys              |
 | `last_read_message_id` | Latest fully read message |
-| `updated_at` | Timestamp |
+| `updated_at`           | Timestamp                 |
 
 ### Reconciliation Logic
 - Update status only when new state > current state (RECEIVED < DELIVERED < READ).
@@ -146,14 +146,14 @@ When WebSocket delivery fails, a **secondary delivery channel** (APN/FCM) ensure
 
 ### `push-notifications` Table (ScyllaDB)
 
-| Column | Type | Description |
-|---------|------|-------------|
-| `id` | `text` | `{type}#{user_id}#{notification_id/message_id}` |
-| `deliver_at` | `timestamp` | Scheduled delivery time; `NULL` = delivered |
-| `state` | `text` | `"PENDING"` / `"DELIVERED"` |
-| `payload` | `json` | Notification content |
-| `created_at` | `timestamp` | Record creation time |
-| TTL | ~7 days |
+| Column       | Type        | Description                                     |
+|--------------|-------------|-------------------------------------------------|
+| `id`         | `text`      | `{type}#{user_id}#{notification_id/message_id}` |
+| `deliver_at` | `timestamp` | Scheduled delivery time; `NULL` = delivered     |
+| `state`      | `text`      | `"PENDING"` / `"DELIVERED"`                     |
+| `payload`    | `json`      | Notification content                            |
+| `created_at` | `timestamp` | Record creation time                            |
+| TTL          | ~7 days     |
 
 ---
 
@@ -176,11 +176,11 @@ IF state = 'PENDING';
 
 #### Conflict Handling
 
-| Existing | New | Action |
-|-----------|-----|--------|
-| `PENDING` + failed | Do nothing |
+| Existing            | New                        | Action |
+|---------------------|----------------------------|--------|
+| `PENDING` + failed  | Do nothing                 |
 | `PENDING` + success | Overwrite → mark delivered |
-| `DELIVERED` + any | Do nothing |
+| `DELIVERED` + any   | Do nothing                 |
 
 ---
 
@@ -237,19 +237,19 @@ All rows expire automatically after TTL.
 
 ## Summary Checklist
 
-| Feature | Implemented |
-|----------|--------------|
-| Message routing (Kafka) | ✅ |
-| Sticky partitioning (consistent hashing) | ✅ |
-| Hot partition mitigation (vnodes) | ✅ |
-| Horizontal scaling & switchover | ✅ |
-| Reconnection & Scylla sync | ✅ |
-| Delivery receipts pipeline | ✅ |
-| Sender notifications | ✅ |
-| Secondary push delivery | ✅ |
-| Conditional writes (CAS) | ✅ |
-| Presence lag safety | ✅ |
-| TTL cleanup & deduplication | ✅ |
+| Feature                                  | Implemented   |
+|------------------------------------------|---------------|
+| Message routing (Kafka)                  | ✅             |
+| Sticky partitioning (consistent hashing) | ✅             |
+| Hot partition mitigation (vnodes)        | ✅             |
+| Horizontal scaling & switchover          | ✅             |
+| Reconnection & Scylla sync               | ✅             |
+| Delivery receipts pipeline               | ✅             |
+| Sender notifications                     | ✅             |
+| Secondary push delivery                  | ✅             |
+| Conditional writes (CAS)                 | ✅             |
+| Presence lag safety                      | ✅             |
+| TTL cleanup & deduplication              | ✅             |
 
 ---
 
