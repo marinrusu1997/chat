@@ -86,7 +86,6 @@ linters:
     goconst:
       numbers: true
       ignore-calls: false
-      find-duplicates: true
       eval-const-expressions: true
       ignore-string-values:
         - 'name'

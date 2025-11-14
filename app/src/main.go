@@ -15,6 +15,7 @@ import (
 	"chat/src/platform/logging"
 	"chat/src/platform/security"
 	"chat/src/platform/state"
+	"chat/src/services/presence"
 	"context"
 	"fmt"
 	"os"
@@ -140,7 +141,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to create storage clients")
 	}
 
-	lifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
+	storageClientsLifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
 		Services: map[string]lifecycle.ServiceLifecycle{
 			elasticsearch.PingTargetName: storageClients.Elasticsearch,
 			// kafka.PingTargetName:         storageClients.Kafka.Admin, @fixme enable later
@@ -151,15 +152,15 @@ func main() {
 			scylla.PingTargetName:     storageClients.ScyllaDB,
 			nats.PingTargetName:       storageClients.Nats,
 		},
-		Logger: loggerFactory.Child("lifecycle.controller"),
+		Logger: loggerFactory.Child("lifecycle.clients"),
 	})
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to create lifecycle controller")
+		logger.Fatal().Err(err).Msg("Failed to create storage clients lifecycle controller")
 	}
-	if err := lifecycleController.Start(context.Background()); err != nil {
-		logger.Fatal().Err(err).Msg("Failed to start lifecycle controller")
+	if err := storageClientsLifecycleController.Start(context.Background()); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to start storage clients lifecycle controller")
 	}
-	defer lifecycleController.Stop(context.Background())
+	defer storageClientsLifecycleController.Stop(context.Background())
 
 	healthController, err := health.NewController(&health.ControllerConfig{
 		Dependencies: map[string]health.Pingable{
@@ -179,6 +180,20 @@ func main() {
 	}
 	healthController.Start()
 	defer healthController.Stop()
+
+	servicesLifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
+		Services: map[string]lifecycle.ServiceLifecycle{
+			"presence": presence.NewService(storageClients.Redis, storageClients.Nats, loggerFactory.ChildPtr("services.presence")),
+		},
+		Logger: loggerFactory.Child("lifecycle.services"),
+	})
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create services lifecycle controller")
+	}
+	if err := servicesLifecycleController.Start(context.Background()); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to start services lifecycle controller")
+	}
+	defer servicesLifecycleController.Stop(context.Background())
 
 	blockOnSignal(syscall.SIGINT, syscall.SIGTERM)
 }
