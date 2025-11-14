@@ -173,6 +173,11 @@ func (lf *LoggerFactory) Child(name string, opts ...LoggerOption) zerolog.Logger
 	return child.Logger().Level(level)
 }
 
+func (lf *LoggerFactory) ChildPtr(name string, opts ...LoggerOption) *zerolog.Logger {
+	child := lf.Child(name, opts...)
+	return &child
+}
+
 func (lf *LoggerFactory) getLevel(name string) zerolog.Level {
 	if lvl, ok := lf.level.literal[name]; ok {
 		return lvl
