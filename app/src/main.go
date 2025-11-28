@@ -2,6 +2,7 @@ package main
 
 import (
 	"chat/src/clients/elasticsearch"
+	"chat/src/clients/email"
 	"chat/src/clients/etcd"
 	"chat/src/clients/kafka"
 	"chat/src/clients/nats"
@@ -22,6 +23,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/wneessen/go-mail"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -130,48 +132,55 @@ func main() {
 					RequireMutualTLS: true,
 				},
 			},
+			email.PingTargetName: {
+				Paths: security.TLSMaterialPaths{
+					Truststore: string(cfg.Email.Truststore),
+				},
+			},
 		},
 	})
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to load tls configs")
 	}
 
-	storageClients, err := state.CreateStorageClients(cfg, tlsConfigs.Services, loggerFactory)
+	clients, err := state.CreateClients(cfg, tlsConfigs.Services, loggerFactory)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to create storage clients")
+		logger.Fatal().Err(err).Msg("Failed to create clients")
 	}
 
-	storageClientsLifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
+	clientsLifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
 		Services: map[string]lifecycle.ServiceLifecycle{
-			elasticsearch.PingTargetName: storageClients.Elasticsearch,
-			// kafka.PingTargetName:         storageClients.Kafka.Admin, @fixme enable later
-			neo4j.PingTargetName:      storageClients.Neo4j,
-			etcd.PingTargetName:       storageClients.Etcd,
-			postgresql.PingTargetName: storageClients.PostgreSQL,
-			redis.PingTargetName:      storageClients.Redis,
-			scylla.PingTargetName:     storageClients.ScyllaDB,
-			nats.PingTargetName:       storageClients.Nats,
+			elasticsearch.PingTargetName: clients.Elasticsearch,
+			// kafka.PingTargetName:         clients.Kafka.Admin, @fixme enable later
+			neo4j.PingTargetName:      clients.Neo4j,
+			etcd.PingTargetName:       clients.Etcd,
+			postgresql.PingTargetName: clients.PostgreSQL,
+			redis.PingTargetName:      clients.Redis,
+			scylla.PingTargetName:     clients.ScyllaDB,
+			nats.PingTargetName:       clients.Nats,
+			email.PingTargetName:      clients.Email,
 		},
 		Logger: loggerFactory.Child("lifecycle.clients"),
 	})
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to create storage clients lifecycle controller")
+		logger.Fatal().Err(err).Msg("Failed to create clients lifecycle controller")
 	}
-	if err := storageClientsLifecycleController.Start(context.Background()); err != nil {
-		logger.Fatal().Err(err).Msg("Failed to start storage clients lifecycle controller")
+	if err := clientsLifecycleController.Start(context.Background()); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to start clients lifecycle controller")
 	}
-	defer storageClientsLifecycleController.Stop(context.Background())
+	defer clientsLifecycleController.Stop(context.Background())
 
 	healthController, err := health.NewController(&health.ControllerConfig{
 		Dependencies: map[string]health.Pingable{
-			elasticsearch.PingTargetName: storageClients.Elasticsearch,
-			// kafka.PingTargetName:         storageClients.Kafka.Admin, @fixme enable later
-			neo4j.PingTargetName:      storageClients.Neo4j,
-			etcd.PingTargetName:       storageClients.Etcd,
-			postgresql.PingTargetName: storageClients.PostgreSQL,
-			redis.PingTargetName:      storageClients.Redis,
-			scylla.PingTargetName:     storageClients.ScyllaDB,
-			nats.PingTargetName:       storageClients.Nats,
+			elasticsearch.PingTargetName: clients.Elasticsearch,
+			// kafka.PingTargetName:         clients.Kafka.Admin, @fixme enable later
+			neo4j.PingTargetName:      clients.Neo4j,
+			etcd.PingTargetName:       clients.Etcd,
+			postgresql.PingTargetName: clients.PostgreSQL,
+			redis.PingTargetName:      clients.Redis,
+			scylla.PingTargetName:     clients.ScyllaDB,
+			nats.PingTargetName:       clients.Nats,
+			email.PingTargetName:      clients.Email,
 		},
 		Logger: loggerFactory.Child("health.controller"),
 	})
@@ -183,7 +192,7 @@ func main() {
 
 	servicesLifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
 		Services: map[string]lifecycle.ServiceLifecycle{
-			"presence": presence.NewService(storageClients.Redis, storageClients.Nats, loggerFactory.ChildPtr("services.presence")),
+			"presence": presence.NewService(clients.Redis, clients.Nats, loggerFactory.ChildPtr("services.presence")),
 		},
 		Logger: loggerFactory.Child("lifecycle.services"),
 	})
@@ -194,6 +203,35 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to start services lifecycle controller")
 	}
 	defer servicesLifecycleController.Stop(context.Background())
+
+	// @fixme remove me
+	msg := mail.NewMsg()
+	if err := msg.From("app@chat.com"); err != nil {
+		logger.Fatal().Err(err).Msgf("Failed to set email from address to '%s'", "app@chat.com")
+	}
+	if err := msg.To("user@chat.com"); err != nil {
+		logger.Fatal().Err(err).Msgf("Failed to set email to address to '%s'", "user@chat.com")
+	}
+	msg.Subject("Hello")
+	msg.SetBodyString(mail.TypeTextPlain, "This is a test email.")
+
+	failuresCount := 0
+	for i := 0; i < int(cfg.Email.QueueSize*2); i++ {
+		err := clients.Email.Send(email.Request{
+			SendOptions: email.SendEmailOptions{
+				Email: msg,
+			},
+			Response: make(chan error, 1),
+		})
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to enqueue email")
+			failuresCount++
+		}
+	}
+	if failuresCount > 0 {
+		logger.Warn().Msgf("Failed to enqueue %d/%d emails", failuresCount, cfg.Email.QueueSize*2)
+	}
+	// @fixme remove me
 
 	blockOnSignal(syscall.SIGINT, syscall.SIGTERM)
 }

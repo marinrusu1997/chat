@@ -35,6 +35,7 @@ SERVICES=(
 	"nats-node-1"
 	"nats-node-2"
 	"nats-node-3"
+	"mailpit"
 	"chat-app-1"
 )
 

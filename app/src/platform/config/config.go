@@ -65,6 +65,16 @@ type NatsConfig struct {
 	Servers           []string `koanf:"servers" validate:"required,min=1,max=10,unique,dive,required,uri,startswith=nats"`
 }
 
+type EmailConfig struct {
+	CredentialsConfig `koanf:",squash"`
+	TLSPathsConfig    `koanf:",squash"`
+	SMTPHost          string `koanf:"smtp_host" validate:"required,hostname|ip"`
+	SMTPPort          uint16 `koanf:"smtp_port" validate:"required,port"`
+	FromAddress       string `koanf:"from_address" validate:"required,email"`
+	NumWorkers        uint8  `koanf:"num_workers" validate:"required,min=1,max=100"`
+	QueueSize         uint16 `koanf:"queue_size" validate:"required,min=1,max=1000"`
+}
+
 type KafkaConfig struct {
 	TLSPathsConfig `koanf:",squash"`
 	SeedBrokers    []string          `koanf:"seed_brokers" validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
@@ -108,6 +118,7 @@ type Config struct {
 	Elasticsearch ElasticsearchConfig `koanf:"elasticsearch" validate:"required"`
 	Neo4j         Neo4jConfig         `koanf:"neo4j" validate:"required"`
 	Nats          NatsConfig          `koanf:"nats" validate:"required"`
+	Email         EmailConfig         `koanf:"email" validate:"required"`
 	Kafka         KafkaConfig         `koanf:"kafka" validate:"required"`
 	Logging       LoggingConfig       `koanf:"logging" validate:"required"`
 }

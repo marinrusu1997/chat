@@ -2,6 +2,7 @@ package state
 
 import (
 	"chat/src/clients/elasticsearch"
+	"chat/src/clients/email"
 	"chat/src/clients/etcd"
 	"chat/src/clients/kafka"
 	"chat/src/clients/nats"
@@ -13,6 +14,9 @@ import (
 	"chat/src/platform/logging"
 	"crypto/tls"
 	"fmt"
+	"time"
+
+	"github.com/emersion/go-sasl"
 )
 
 type KafkaConsumerClients struct {
@@ -34,10 +38,11 @@ type StorageClients struct {
 	Redis         *redis.Client
 	ScyllaDB      *scylla.Client
 	Nats          *nats.Client
+	Email         *email.Client
 	Kafka         KafkaClients
 }
 
-func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Config, loggerFactory *logging.LoggerFactory) (*StorageClients, error) {
+func CreateClients(config *config.Config, tlsConfig map[string]*tls.Config, loggerFactory *logging.LoggerFactory) (*StorageClients, error) {
 	// Elasticsearch Client
 	elasticsearchClient := elasticsearch.NewClient(&elasticsearch.ClientOptions{
 		Addresses:    config.Elasticsearch.Addresses,
@@ -129,6 +134,25 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 		Logger:     loggerFactory.Child("client.nats"),
 	})
 
+	// Email Client
+	emailClient := email.NewClient(&email.ClientOptions{
+		WorkerPoolOptions: email.WorkerPoolOptions{
+			SMTPClientOptions: &email.SMTPClientOptions{
+				Host:              config.Email.SMTPHost,
+				Port:              config.Email.SMTPPort,
+				TLSConfig:         tlsConfig[email.PingTargetName],
+				Auth:              sasl.NewLoginClient(config.Email.Username, string(config.Email.Password)),
+				ReconnectTimeout:  5 * time.Second,
+				CommandTimeout:    10 * time.Second,
+				SubmissionTimeout: 15 * time.Second,
+				SendTimeout:       60 * time.Second,
+				Logger:            nil,
+			},
+			Logger:     loggerFactory.ChildPtr("client.email"),
+			NumWorkers: config.Email.NumWorkers,
+			QueueSize:  config.Email.QueueSize,
+		}})
+
 	// @FIXME Kafka Clients
 
 	return &StorageClients{
@@ -139,6 +163,7 @@ func CreateStorageClients(config *config.Config, tlsConfig map[string]*tls.Confi
 		Redis:         redisClient,
 		ScyllaDB:      scyllaClient,
 		Nats:          natsClient,
+		Email:         emailClient,
 		Kafka: KafkaClients{
 			Admin:    nil, // @FIXME create kafka admin client
 			Producer: nil, // @FIXME create kafka admin client
