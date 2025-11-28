@@ -61,6 +61,12 @@ networks:
       driver: default
       config:
         - subnet: 172.26.0.0/16
+  mailpit_backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.27.0.0/16
 
 volumes:
   etcd-data-1:
@@ -93,6 +99,7 @@ volumes:
   nats-data-1:
   nats-data-2:
   nats-data-3:
+  mailpit-data:
   prometheus-data:
   grafana-data:
 
@@ -2145,6 +2152,69 @@ services:
       nats-node-1:
         condition: service_healthy
 
+  mailpit:
+    image: axllent/mailpit:v1.28.0
+    container_name: mailpit
+    hostname: mailpit
+    logging: *default-logging
+    networks:
+      - mailpit_backend_network
+    volumes:
+      # Certificates
+      - ./cert-generator/output/ca/root.crt:/etc/mailpit/certs/ca/public.crt:ro
+      - ./cert-generator/output/services/mailpit/private.key:/etc/mailpit/certs/private.key:ro
+      - ./cert-generator/output/services/mailpit/public.crt:/etc/mailpit/certs/public.crt:ro
+      # Data
+      - mailpit-data:/var/lib/mailpit
+      # Secrets
+      - ./mailpit/secrets:/etc/mailpit/secrets:ro
+    ports:
+      - 8025:8025
+    environment:
+      MP_DATABASE: /var/lib/mailpit/storage.db
+      MP_DISABLE_VERSION_CHECK: true
+      MP_COMPRESSION: 3
+      MP_LABEL: local-dev
+      MP_TENANT_ID: dev
+      MP_MAX_MESSAGES: 1000
+      MP_MAX_AGE: 1d
+
+      MP_UI_BIND_ADDR: 0.0.0.0:8025
+      MP_UI_AUTH_FILE: /etc/mailpit/secrets/ui.password
+      MP_UI_TLS_CERT: /etc/mailpit/certs/public.crt
+      MP_UI_TLS_KEY: /etc/mailpit/certs/private.key
+      MP_SEND_API_AUTH_FILE: /etc/mailpit/secrets/http-send.password
+
+      MP_SMTP_BIND_ADDR: 0.0.0.0:1025
+      MP_SMTP_AUTH_FILE: /etc/mailpit/secrets/smtp.password
+      MP_SMTP_TLS_CERT: /etc/mailpit/certs/public.crt
+      MP_SMTP_TLS_KEY: /etc/mailpit/certs/private.key
+      MP_SMTP_REQUIRE_TLS: true
+      MP_SMTP_STRICT_RFC_HEADERS: true
+      MP_SMTP_MAX_RECIPIENTS: 50
+      MP_SMTP_DISABLE_RDNS: false
+
+      MP_ENABLE_CHAOS: true
+      MP_CHAOS_TRIGGERS: Sender:451:25,Recipients:550:25
+
+      MP_POP3_BIND_ADDR: 0.0.0.0:1110
+      MP_POP3_AUTH_FILE: /etc/mailpit/secrets/pop3.password
+      MP_POP3_TLS_CERT: /etc/mailpit/certs/public.crt
+      MP_POP3_TLS_KEY: /etc/mailpit/certs/private.key
+
+      MP_TAG: '"message"="new message"'
+
+      MP_ENABLE_PROMETHEUS: true
+    healthcheck:
+      test: [ "CMD", "nc", "-zv", "localhost", "1025" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: "no"
+    mem_limit: 2GB
+    cpus: 2
+
   prometheus:
     image: 'prom/prometheus:v3.5.0'
     container_name: prometheus
@@ -2217,6 +2287,7 @@ services:
       - neo4j_backend_network
       - kafka_backend_network
       - nats_backend_network
+      - mailpit_backend_network
       - chat_app_network
     volumes:
       # Source code
@@ -2264,6 +2335,8 @@ services:
       neo4j-node-1:
         condition: service_healthy
       schema-registry-1:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
       grafana:
         condition: service_healthy

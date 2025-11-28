@@ -42,6 +42,15 @@ nats:
   username: "chat_app_user"
   password: "sY3-0zL1xX5b78vGf9qJ"
 
+email:
+  smtp_host: "mailpit"
+  smtp_port: 1025
+  username: "sender"
+  password: "RfJKtCXSFBmQOcPdVHfAWsG7"
+  from_address: "app@chat.com"
+  num_workers: 10
+  queue_size: 100
+
 redis:
   addresses:
     - "redis-node-1:6379"
