@@ -58,12 +58,18 @@ func (c *Client) Stop(ctx context.Context) {
 		return
 	}
 
-	// @fixme do manual tests with commit offsets
-	err := c.Driver.CommitUncommittedOffsets(ctx)
+	err := c.Driver.CommitMarkedOffsets(ctx)
 	if err != nil {
-		c.logger.Error().Err(err).Msg("Final synchronous commit failed")
+		c.logger.Error().Err(err).Msg("Final CommitMarkedOffsets failed")
 	} else {
-		c.logger.Info().Msg("Successfully performed final synchronous commit.")
+		c.logger.Info().Msg("Successfully performed final CommitMarkedOffsets.")
+	}
+
+	err = c.Driver.CommitUncommittedOffsets(ctx)
+	if err != nil {
+		c.logger.Error().Err(err).Msg("Final CommitUncommittedOffsets failed")
+	} else {
+		c.logger.Info().Msg("Successfully performed final CommitUncommittedOffsets commit.")
 	}
 
 	c.Driver.Close()

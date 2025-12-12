@@ -27,7 +27,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// @FIXME: https://github.com/uber-go/guide/tree/master
+//	@FIXME:	https://github.com/uber-go/guide/tree/master
 
 func main() {
 	cfg, err := config.Load(config.LoadConfigOptions{
@@ -143,6 +143,12 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to load tls configs")
 	}
 
+	//	@fixme	remove me
+	if err := kafka.OrchestrateKafkaTest(loggerFactory.ChildPtr("clients.kafka.example"), tlsConfigs.Services[kafka.PingTargetName]); err != nil {
+		panic(err)
+	}
+	//	@fixme	remove me
+
 	clients, err := state.CreateClients(cfg, tlsConfigs.Services, loggerFactory)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create clients")
@@ -204,7 +210,7 @@ func main() {
 	}
 	defer servicesLifecycleController.Stop(context.Background())
 
-	// @fixme remove me
+	//	@fixme	remove me
 	msg := mail.NewMsg()
 	if err := msg.From("app@chat.com"); err != nil {
 		logger.Fatal().Err(err).Msgf("Failed to set email from address to '%s'", "app@chat.com")
@@ -231,7 +237,7 @@ func main() {
 	if failuresCount > 0 {
 		logger.Warn().Msgf("Failed to enqueue %d/%d emails", failuresCount, cfg.Email.QueueSize*2)
 	}
-	// @fixme remove me
+	//	@fixme	remove me
 
 	blockOnSignal(syscall.SIGINT, syscall.SIGTERM)
 }

@@ -21,16 +21,11 @@ const (
 type ScratchConfig struct {
 	Username string
 	Password string
+	TLS      *tls.Config
 	Logger   zerolog.Logger
 }
 
 func newClient(cfg ScratchConfig) (*Client, error) {
-	var tlsConfig *tls.Config
-
-	consumeStartOffset := kgo.NewOffset().AtEnd()
-	consumeResetOffset := kgo.NewOffset().AtEnd()
-	partitioner := kgo.ManualPartitioner()
-
 	builder := NewConfigurationBuilder(&ConfigurationLoggers{
 		Client: cfg.Logger,
 		Driver: cfg.Logger,
@@ -40,47 +35,53 @@ func newClient(cfg ScratchConfig) (*Client, error) {
 		ServiceName:    "chatapp",
 		ServiceVersion: "v1.0.0",
 		SeedBrokers:    []string{"kafka1:9092", "kafka2:9092", "kafka3:9092"},
-		TLSConfig:      tlsConfig,
+		TLSConfig:      cfg.TLS,
 		Username:       cfg.Username,
 		Password:       cfg.Password,
 	}) &&
-		builder.SetProducerConfig(&ProducerConfig{
-			RecordPartitioner: &partitioner,
-		}) &&
-		builder.SetConsumerConfig(&ConsumerConfig{
-			ConsumeStartOffset: &consumeStartOffset,
-			ConsumeResetOffset: &consumeResetOffset,
+		builder.SetConsumerGroupConfig(&ConsumerGroupConfig{
+			GroupID:         "chat-sample-group-id",
+			Balancers:       []kgo.GroupBalancer{kgo.CooperativeStickyBalancer()},
+			AutoCommitMarks: true,
 		})
 
-	return NewClient(builder)
+	client, error := NewClient(builder)
+	if error != nil {
+		return nil, error
+	}
+
+	if err := client.Start(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
 
-func OrchestrateKafkaTest(logger *zerolog.Logger) error {
+func OrchestrateKafkaTest(logger *zerolog.Logger, tlsConfig *tls.Config) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client, err := newClient(ScratchConfig{
+	underlyingAdminclient, err := newClient(ScratchConfig{
 		Username: "chat_admin",
 		Password: "eP7-KlADI-hWmWeGcEQC",
+		TLS:      tlsConfig,
 		Logger:   logger.With().Logger().Level(zerolog.InfoLevel),
 	})
 	if err != nil {
 		return err
 	}
+	adminClient := kadm.NewClient(underlyingAdminclient.Driver)
+	defer underlyingAdminclient.Stop(context.Background())
 
-	adminClient := kadm.NewClient(client.Driver)
-	defer adminClient.Close()
-
-	client, err = newClient(ScratchConfig{
+	chatClient, err := newClient(ScratchConfig{
 		Username: "chat_prod_cons",
 		Password: "cT5_mevs6MCdzo19H3xn",
+		TLS:      tlsConfig,
 		Logger:   logger.With().Logger().Level(zerolog.InfoLevel),
 	})
 	if err != nil {
 		return err
 	}
-
-	chatClient := client
 	defer chatClient.Stop(context.Background())
 
 	if err := createTopic(ctx, logger, adminClient); err != nil {
@@ -88,7 +89,7 @@ func OrchestrateKafkaTest(logger *zerolog.Logger) error {
 	}
 	logger.Info().Msgf("Setup complete. Topic %s created with %d partitions.", topicName, partitions)
 
-	runDynamicSubscriptionTest(ctx, logger, chatClient.Driver)
+	runDynamicSubscriptionTest(ctx, logger, chatClient)
 	logger.Info().Msg("Test finished successfully.")
 	return nil
 }
@@ -110,10 +111,12 @@ func createTopic(ctx context.Context, logger *zerolog.Logger, adm *kadm.Client) 
 	if resp.Err != nil {
 		return fmt.Errorf("broker error creating topic %s: %w", topicName, resp.Err)
 	}
+
+	logger.Info().Msgf("Created topic %s...", topicName)
 	return nil
 }
 
-func runDynamicSubscriptionTest(ctx context.Context, logger *zerolog.Logger, chatClient *kgo.Client) {
+func runDynamicSubscriptionTest(ctx context.Context, logger *zerolog.Logger, chatClient *Client) {
 	// --- Helper functions for clarity ---
 
 	// Produces one message to each of the 4 partitions
@@ -131,7 +134,7 @@ func runDynamicSubscriptionTest(ctx context.Context, logger *zerolog.Logger, cha
 			}
 
 			// Use a blocking ProduceSync for reliable testing, wait for result
-			if res := chatClient.ProduceSync(ctx, record); res.FirstErr() != nil {
+			if res := chatClient.Driver.ProduceSync(ctx, record); res.FirstErr() != nil {
 				logger.Error().Msgf("Failed to produce record to P%d with value '%s'. Broker Error: %v",
 					p, value, res.FirstErr(),
 				)
@@ -141,122 +144,37 @@ func runDynamicSubscriptionTest(ctx context.Context, logger *zerolog.Logger, cha
 		}
 	}
 
-	// Consumes up to maxMessages and reports the count
-	consumeMessages := func(expectedCount int, expectedPartitions map[int32]struct{}) int {
-		logger.Info().Msgf("--- CONSUMER: Polling for up to %d messages ---", expectedCount)
-
-		// Poll in a loop until the expected number of messages are collected or a timeout occurs
-		ctxTimeout, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-
-		consumedCount := 0
-		consumedPartitions := make([]int32, 0, len(expectedPartitions))
-		for consumedCount < expectedCount {
-			fetches := chatClient.PollRecords(ctxTimeout, 100)
-			if fetches.Err() != nil {
-				logger.Error().Msgf("Error during consumption: %v", fetches.Err())
-				break
-			}
-
-			fetches.EachRecord(func(r *kgo.Record) {
-				logger.Info().Msgf("  <- Consumed: '%s' from P%d (Offset: %d)", string(r.Value), r.Partition, r.Offset)
-				consumedPartitions = append(consumedPartitions, r.Partition)
-				consumedCount++
-			})
+	router := NewConsumptionRouter(&ConsumptionRouterOptions{
+		Client:               chatClient,
+		TimeoutEstimator:     NewTimeoutEstimator(300, 0.7, 300*time.Millisecond, 3000*time.Millisecond),
+		PartitionParallelism: 100,
+		Logger:               logger,
+	})
+	router.Handle(topicName, func(topic string, partition int32, records []*kgo.Record) {
+		for _, r := range records {
+			logger.Info().Msgf("  <- Consumed: '%s' from P%d (Offset: %d)", string(r.Value), r.Partition, r.Offset)
 		}
+	})
+	chatClient.Driver.PauseFetchTopics(topicName)
 
-		if consumedCount != expectedCount {
-			logger.Warn().Msgf("  WARNING: Expected %d messages, but consumed %d.", expectedCount, consumedCount)
-		} else {
-			logger.Info().Msgf("  SUCCESS: Consumed expected %d messages.", consumedCount)
-		}
-
-		for _, p := range consumedPartitions {
-			if _, exists := expectedPartitions[p]; !exists {
-				logger.Warn().Msgf("  WARNING: Consumed message from unexpected partition P%d.", p)
-			}
-		}
-
-		// Since this is a non-group consumer, we do not commit offsets to Kafka.
-		// The next consumption will start based on the offset provided in
-		// cl.AddConsumePartitions (which is currently kgo.End).
-		return consumedCount
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	go router.Run(ctx)
+	defer cancel()
 
 	// --- Test Flow ---
 
-	// ** Step 1: Initial Subscription (P1, P2) and Production **
-	logger.Info().Msg("\n=== PHASE 1: Subscribing to P1 and P2 only ===")
-	// Note: We use AddConsumePartitions to start consumption explicitly on partitions 1 and 2
-	chatClient.AddConsumePartitions(map[string]map[int32]kgo.Offset{
-		topicName: {
-			1: kgo.NewOffset().AtEnd(),
-			2: kgo.NewOffset().AtEnd(),
-		},
-	})
-
-	// Wait briefly for the client to register the subscription
-	time.Sleep(500 * time.Millisecond)
-
 	produceMessages(1)
-	time.Sleep(500 * time.Millisecond) // Wait for messages to be available
-
-	// ** Step 2: Consumption 1 (Expect 2 messages from P1, P2) **
-	// Messages produced to P0 and P3 will not be consumed yet.
-	consumeMessages(2, map[int32]struct{}{1: {}, 2: {}})
-
-	// ** Step 3: Dynamic Addition of partitions (P3, P4) and Production **
-	// IMPORTANT: Set P3 and P4 to start consuming from the LATEST offset (End)
-	// This means they will NOT consume the messages produced in Run 1.
-	logger.Info().Msg("\n=== PHASE 2: Adding P0 and P3 from LATEST offset ===")
-	chatClient.AddConsumePartitions(map[string]map[int32]kgo.Offset{
-		topicName: {
-			0: kgo.NewOffset().AtEnd(),
-			3: kgo.NewOffset().AtEnd(),
-		},
-	})
-
-	// Wait briefly for the client to register the subscription
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond) // Wait for messages to be available
 
 	produceMessages(2)
-	time.Sleep(500 * time.Millisecond)
-
-	// ** Step 4: Consumption 2 (Expect 4 messages) **
-	// P1, P2 consume Run 2 messages. P0, P3 consume Run 2 messages.
-	consumeMessages(4, map[int32]struct{}{0: {}, 1: {}, 2: {}, 3: {}})
-
-	// ** Step 5: Dynamic Removal of partitions (P1, P2) and Production **
-	logger.Info().Msg("\n=== PHASE 3: Unsubscribing from P1 and P2 ===")
-	// Remove the partitions from the subscription list
-	chatClient.RemoveConsumePartitions(map[string][]int32{
-		topicName: {1, 2},
-	})
-
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	produceMessages(3)
-	time.Sleep(500 * time.Millisecond)
-
-	// ** Step 6: Consumption 3 (Expect 2 messages from P0, P3) **
-	// Messages produced to P1 and P2 will be ignored.
-	consumeMessages(2, map[int32]struct{}{0: {}, 3: {}})
-
-	// ** Step 7: Dynamic Removal of partitions (P0, P3) and Production **
-	logger.Info().Msg("\n=== PHASE 4: Unsubscribing from P0 and P3 (Consumer stops all consumption) ===")
-	// Remove the remaining partitions
-	chatClient.RemoveConsumePartitions(map[string][]int32{
-		topicName: {0, 3},
-	})
-
-	time.Sleep(500 * time.Millisecond)
-
-	produceMessages(4)
-	time.Sleep(500 * time.Millisecond)
-
-	// ** Step 8: Consumption 4 (Expect 0 messages) **
-	consumeMessages(0, map[int32]struct{}{})
+	time.Sleep(1000 * time.Millisecond)
 
 	// Final status check
+	select {
+	case <-time.After(30 * time.Second):
+	}
 	logger.Info().Msg("\nAll dynamic subscription and consumption tests completed.")
 }

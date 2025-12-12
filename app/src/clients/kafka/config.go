@@ -78,7 +78,7 @@ type ConsumerGroupConfig struct {
 	Balancers            []kgo.GroupBalancer
 	SessionTimeout       time.Duration `validate:"gte=10000000000,lte=600000000000" default:"60s"` // [10s, 10min], default 60s
 	RebalanceTimeout     time.Duration `validate:"gte=10000000000,lte=60000000000" default:"60s"`  // [10s, 1min], default 60s
-	HeartbeatInterval    time.Duration `validate:"gte=5000000000,lte=15000000000" default:"5s"`    // [5s, 15s], default 5s
+	HeartbeatInterval    time.Duration `validate:"gte=5000000000,lte=15000000000" default:"10s"`   // [5s, 15s], default 10s
 	OnPartitionsRevoked  func(context.Context, *kgo.Client, map[string][]int32)
 	OnPartitionsAssigned func(context.Context, *kgo.Client, map[string][]int32)
 	OnPartitionsLost     func(context.Context, *kgo.Client, map[string][]int32)
@@ -87,7 +87,7 @@ type ConsumerGroupConfig struct {
 	DisableAutoCommit    bool
 	GreedyAutoCommit     bool
 	AutoCommitMarks      bool
-	AutoCommitInterval   time.Duration `validate:"gte=100000000,lte=10000000000" default:"1s"` // [100ms, 10s], default 1s
+	AutoCommitInterval   time.Duration `validate:"gte=100000000,lte=10000000000" default:"5s"` // [100ms, 10s], default 5s
 	AutoCommitCallback   func(*kgo.Client, *kmsg.OffsetCommitRequest, *kmsg.OffsetCommitResponse, error)
 }
 
@@ -113,7 +113,7 @@ func NewConfigurationBuilder(loggers *ConfigurationLoggers) ConfigurationBuilder
 }
 
 func (b *ConfigurationBuilder) SetGeneralConfig(config *GeneralConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
@@ -211,7 +211,7 @@ func (b *ConfigurationBuilder) SetGeneralConfig(config *GeneralConfig) bool {
 }
 
 func (b *ConfigurationBuilder) SetProducerConfig(config *ProducerConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 	if config.RequestTimeout*time.Duration(config.RecordRetries) > config.RecordDeliveryTimeout {
@@ -265,7 +265,7 @@ func (b *ConfigurationBuilder) SetProducerConfig(config *ProducerConfig) bool {
 }
 
 func (b *ConfigurationBuilder) SetTransactionConfig(config *TransactionConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
@@ -295,7 +295,7 @@ func (b *ConfigurationBuilder) SetTransactionConfig(config *TransactionConfig) b
 }
 
 func (b *ConfigurationBuilder) SetConsumerConfig(config *ConsumerConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
@@ -333,7 +333,7 @@ func (b *ConfigurationBuilder) SetConsumerConfig(config *ConsumerConfig) bool {
 }
 
 func (b *ConfigurationBuilder) SetConsumerGroupConfig(config *ConsumerGroupConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
