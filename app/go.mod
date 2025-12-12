@@ -24,7 +24,9 @@ require (
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/creasty/defaults v1.8.0 // indirect
+	github.com/dchest/siphash v1.2.2 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/dustinxie/lockfree v0.0.0-20210712051436-ed0ed42fd0d6 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.7.0 // indirect
 	github.com/elastic/go-elasticsearch/v9 v9.1.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect

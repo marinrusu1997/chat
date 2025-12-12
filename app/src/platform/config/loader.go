@@ -69,6 +69,7 @@ func Load(options LoadConfigOptions) (*Config, error) {
 	if err != nil {
 		return nil, errorBuilder.Wrapf(err, "failed to get hostname")
 	}
+	cfg.Application.Name = "chat-app"
 	cfg.Application.InstanceName = hostname
 	cfg.Application.Version = getEnv("BUILD_VERSION", "unknown")
 	cfg.Application.Commit = getEnv("BUILD_COMMIT", "unknown")

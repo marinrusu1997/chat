@@ -64,7 +64,7 @@ func NewClient(options *ClientOptions) (*Client, error) {
 		pgxdecimal.Register(conn.TypeMap())
 		err := pgxgeos.Register(connectionCtx, conn, geos.NewContext())
 		if err != nil {
-			return fmt.Errorf("failed to register 'pgxgeos' on pgx connection 'postgres://%s@%s:%d/%s' with id '%d': %v",
+			return fmt.Errorf("failed to register 'pgxgeos' on pgx connection 'postgres://%s@%s:%d/%s' with id '%d': %w",
 				conn.Config().User, conn.Config().Host, conn.Config().Port, conn.Config().Database, conn.PgConn().PID(), err,
 			)
 		}
@@ -72,7 +72,7 @@ func NewClient(options *ClientOptions) (*Client, error) {
 			for name, sql := range *options.PreparedStatements {
 				_, err := conn.Prepare(connectionCtx, name, sql)
 				if err != nil {
-					return fmt.Errorf("failed to prepare statement '%s' on pgx connection 'postgres://%s@%s:%d/%s' with id '%d': %v",
+					return fmt.Errorf("failed to prepare statement '%s' on pgx connection 'postgres://%s@%s:%d/%s' with id '%d': %w",
 						name, conn.Config().User, conn.Config().Host, conn.Config().Port, conn.Config().Database, conn.PgConn().PID(), err,
 					)
 				}
@@ -95,7 +95,7 @@ func (c *Client) Start(ctx context.Context) error {
 
 	pool, err := pgxpool.NewWithConfig(ctx, c.config)
 	if err != nil {
-		return fmt.Errorf("failed to start postgresql client: %v", err)
+		return fmt.Errorf("failed to start postgresql client: %w", err)
 	}
 
 	c.Driver = pool

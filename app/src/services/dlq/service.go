@@ -217,7 +217,7 @@ func (s *Service[T]) DequeueMulti(ctx context.Context, recipientID string, count
 		if err != nil {
 			err := s.redis.client.Driver.Del(ctx, key).Err()
 			if err != nil {
-				s.logger.Warn().Msgf("failed to delete corrupted DLQ '%s': %v", key, err)
+				s.logger.Warn().Err(err).Msgf("failed to delete corrupted DLQ '%s'", key)
 			}
 			return nil, fmt.Errorf("dlq '%s' corrupted: %w", key, err)
 		}

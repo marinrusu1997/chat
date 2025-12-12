@@ -129,13 +129,15 @@ func NewStaticAddressTranslator(translations map[string]string, logger *zerolog.
 	for internal, external := range translations {
 		internalAddress, err := parseInternalAddress(internal)
 		if err != nil {
-			translator.logger.Warn().Msgf("Failed to parse internal translation address '%s': %v", internal, err)
+			translator.logger.Warn().Err(err).Msgf("Failed to parse internal translation address '%s'", internal)
 			continue
 		}
 		externalAddress, err := parseExternalAddress(external, &translator.logger)
 		if err != nil {
-			translator.logger.Warn().Msgf("Failed to parse external translation address '%s' associated with internal address '%s': %v",
-				external, internal, err)
+			translator.logger.Warn().Err(err).Msgf(
+				"Failed to parse external translation address '%s' associated with internal address '%s'",
+				external, internal,
+			)
 			continue
 		}
 
@@ -174,7 +176,7 @@ func NewStaticAddressTranslator(translations map[string]string, logger *zerolog.
 
 			ip, network, err := net.ParseCIDR(internalAddress.main)
 			if err != nil {
-				translator.logger.Warn().Msgf("Failed to parse CIDR '%s' for internal address '%s': %v", internalAddress.main, internal, err)
+				translator.logger.Warn().Err(err).Msgf("Failed to parse CIDR '%s' for internal address '%s'", internalAddress.main, internal)
 				continue
 			}
 
@@ -194,7 +196,7 @@ func NewStaticAddressTranslator(translations map[string]string, logger *zerolog.
 				},
 			})
 			if err != nil {
-				translator.logger.Warn().Msgf("Failed to insert CIDR entry for CIDR '%s': %v", internalAddress.main, err)
+				translator.logger.Warn().Err(err).Msgf("Failed to insert CIDR entry for CIDR '%s'", internalAddress.main)
 				continue
 			}
 
@@ -245,7 +247,7 @@ func (s *StaticAddressTranslator) Translate(originalIP net.IP, originalPort uint
 			}
 		}
 	} else {
-		s.logger.Warn().Msgf("CIDR ranger lookup error for IP '%s': %v", originalIP, err)
+		s.logger.Warn().Err(err).Msgf("CIDR ranger lookup error for IP '%s'", originalIP)
 	}
 
 	// No translation found, return original

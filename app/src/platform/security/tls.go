@@ -88,7 +88,7 @@ func buildTLSConfig(paths *TLSMaterialPaths) (*tls.Config, error) {
 			return nil, oops.
 				In(util.GetFunctionName()).
 				Code(perr.ENOENT).
-				Wrapf(err, "failed to load certificate from path '%s' and key from path '%s': %v", paths.Certificate, paths.Key, err)
+				Wrapf(err, "failed to load certificate from path '%s' and key from path '%s'", paths.Certificate, paths.Key)
 		}
 		certificates = append(certificates, cert)
 	}

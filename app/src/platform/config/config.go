@@ -80,7 +80,7 @@ type KafkaConfig struct {
 	SeedBrokers    []string          `koanf:"seed_brokers" validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
 	Users          KafkaUsers        `koanf:"users" validate:"required"`
 	Topics         KafkaConfigTopics `koanf:"topics" validate:"required"`
-	GroupID        string            `koanf:"group_id" validate:"required,min=4,max=64,alphanum"`
+	GroupID        string            `koanf:"group_id" validate:"required,min=4,max=64,printascii,lowercase"`
 }
 
 type KafkaUsers struct {
@@ -89,9 +89,7 @@ type KafkaUsers struct {
 }
 
 type KafkaConfigTopics struct {
-	UserInbox         string `koanf:"user_inbox" validate:"required,min=4,max=64"`
-	GroupInbox        string `koanf:"group_inbox" validate:"required,min=4,max=64"`
-	UserNotifications string `koanf:"user_notifications" validate:"required,min=4,max=64"`
+	EmailDelivery string `koanf:"email_delivery" validate:"required,min=4,max=64,printascii,lowercase"`
 }
 
 type LoggingConfig struct {
@@ -103,6 +101,7 @@ type LoggingConfig struct {
 
 type ApplicationConfig struct {
 	TLSPathsConfig `koanf:",squash"`
+	Name           string
 	InstanceName   string
 	Version        string
 	Commit         string

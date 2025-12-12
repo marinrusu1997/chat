@@ -9,6 +9,8 @@ logging:
   literal_levels:
     "client.neo4j.driver": "warn"
     "client.neo4j.session": "warn"
+    "client.kafka.admin.driver": "warn"
+    "client.kafka.data.driver": "warn"
 
 etcd:
   endpoints:
@@ -91,7 +93,5 @@ kafka:
       username: "chat_prod_cons"
       password: "cT5_mevs6MCdzo19H3xn"
   topics:
-    user_inbox: "user-inbox"
-    group_inbox: "group-inbox"
-    user_notifications: "user-notifications"
-  group_id: "chatgroup"
+    email_delivery: "email-delivery"
+  group_id: "chat-app-group"

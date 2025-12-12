@@ -29,15 +29,15 @@ type Controller struct {
 }
 
 type ControllerTimeoutsOptions struct {
-	Startup            time.Duration            `default:"15s" validate:"required,min=1000000000,max=60000000000"`                            // 1s to 60s
-	StartupPerService  map[string]time.Duration `validate:"dive,keys,min=1,max=50,alphanum,lowercase,endkeys,min=1000000000,max=60000000000"` // 1s to 60s
-	Shutdown           time.Duration            `default:"15s" validate:"required,min=1000000000,max=60000000000"`                            // 1s to 60s
-	ShutdownPerService map[string]time.Duration `validate:"dive,keys,min=1,max=50,alphanum,lowercase,endkeys,min=1000000000,max=60000000000"` // 1s to 60s
+	Startup            time.Duration            `default:"15s" validate:"required,min=1000000000,max=60000000000"`                              // 1s to 60s
+	StartupPerService  map[string]time.Duration `validate:"dive,keys,min=1,max=50,printascii,lowercase,endkeys,min=1000000000,max=60000000000"` // 1s to 60s
+	Shutdown           time.Duration            `default:"15s" validate:"required,min=1000000000,max=60000000000"`                              // 1s to 60s
+	ShutdownPerService map[string]time.Duration `validate:"dive,keys,min=1,max=50,printascii,lowercase,endkeys,min=1000000000,max=60000000000"` // 1s to 60s
 }
 
 type ControllerOptions struct {
-	Services     map[string]ServiceLifecycle `validate:"required,min=1,max=50,dive,keys,min=1,max=50,alphanum,lowercase,endkeys,required"`
-	Dependencies map[string][]string         `validate:"omitempty,min=1,max=50,dive,keys,min=1,max=50,alphanum,lowercase,endkeys,required,dive,min=1,max=50,alphanum,lowercase"`
+	Services     map[string]ServiceLifecycle `validate:"required,min=1,max=50,dive,keys,min=1,max=50,printascii,lowercase,endkeys,required"`
+	Dependencies map[string][]string         `validate:"omitempty,min=1,max=50,dive,keys,min=1,max=50,printascii,lowercase,endkeys,required,dive,min=1,max=50,printascii,lowercase"`
 	Timeouts     ControllerTimeoutsOptions   `validate:"required"`
 	Logger       zerolog.Logger              `validate:"required"`
 }

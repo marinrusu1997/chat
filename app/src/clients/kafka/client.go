@@ -13,6 +13,11 @@ import (
 
 var ErrAlreadyStarted = errors.New("kafka client already started")
 
+const (
+	AdminClientName = "kafka.admin"
+	DataClientName  = "kafka.data"
+)
+
 type Client struct {
 	logger  zerolog.Logger
 	options []kgo.Opt
@@ -52,18 +57,10 @@ func (c *Client) Start(_ context.Context) error {
 	return nil
 }
 
-func (c *Client) Stop(ctx context.Context) {
+func (c *Client) Stop(_ context.Context) {
 	if c.Driver == nil {
 		c.logger.Warn().Msg("Kafka client already stopped")
 		return
-	}
-
-	// @fixme do manual tests with commit offsets
-	err := c.Driver.CommitUncommittedOffsets(ctx)
-	if err != nil {
-		c.logger.Error().Err(err).Msg("Final synchronous commit failed")
-	} else {
-		c.logger.Info().Msg("Successfully performed final synchronous commit.")
 	}
 
 	c.Driver.Close()

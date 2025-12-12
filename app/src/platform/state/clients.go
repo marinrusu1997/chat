@@ -19,15 +19,9 @@ import (
 	"github.com/emersion/go-sasl"
 )
 
-type KafkaConsumerClients struct {
-	Individual *kafka.Client
-	Group      *kafka.Client
-}
-
 type KafkaClients struct {
-	Admin    *kafka.Client
-	Producer *kafka.Client
-	Consumer KafkaConsumerClients
+	Admin *kafka.Client
+	Data  *kafka.Client
 }
 
 type StorageClients struct {
@@ -86,7 +80,7 @@ func CreateClients(config *config.Config, tlsConfig map[string]*tls.Config, logg
 		Logger:                  loggerFactory.Child("client.postgresql"),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create postgresql client: %v", err)
+		return nil, fmt.Errorf("failed to create postgresql client: %w", err)
 	}
 
 	// Redis Client
@@ -153,7 +147,69 @@ func CreateClients(config *config.Config, tlsConfig map[string]*tls.Config, logg
 			QueueSize:  config.Email.QueueSize,
 		}})
 
-	// @FIXME Kafka Clients
+	// Kafka Clients
+	var kafkaAdminClient *kafka.Client
+	var kafkaDataClient *kafka.Client
+
+	commonKafkaGeneralConfig := kafka.GeneralConfig{
+		ClientID:       fmt.Sprintf("kgo-%s", config.Application.Name),
+		ServiceName:    config.Application.InstanceName,
+		ServiceVersion: config.Application.Version,
+		SeedBrokers:    config.Kafka.SeedBrokers,
+		TLSConfig:      tlsConfig[kafka.PingTargetName],
+	}
+
+	{
+		builder := kafka.NewConfigurationBuilder(&kafka.ConfigurationLoggers{
+			Client: loggerFactory.Child("client.kafka.admin"),
+			Driver: loggerFactory.Child("client.kafka.admin.driver"),
+		})
+
+		builder.SetGeneralConfig(&kafka.GeneralConfig{
+			ClientID:       commonKafkaGeneralConfig.ClientID,
+			ServiceName:    commonKafkaGeneralConfig.ServiceName,
+			ServiceVersion: commonKafkaGeneralConfig.ServiceVersion,
+			SeedBrokers:    commonKafkaGeneralConfig.SeedBrokers,
+			TLSConfig:      commonKafkaGeneralConfig.TLSConfig,
+			Username:       config.Kafka.Users.Admin.Username,
+			Password:       string(config.Kafka.Users.Admin.Password),
+		})
+
+		client, err := kafka.NewClient(builder)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kafka admin client: %w", err)
+		}
+		kafkaAdminClient = client
+	}
+	{
+		builder := kafka.NewConfigurationBuilder(&kafka.ConfigurationLoggers{
+			Client: loggerFactory.Child("client.kafka.data"),
+			Driver: loggerFactory.Child("client.kafka.data.driver"),
+		})
+
+		builder.SetGeneralConfig(&kafka.GeneralConfig{
+			ClientID:       commonKafkaGeneralConfig.ClientID,
+			ServiceName:    commonKafkaGeneralConfig.ServiceName,
+			ServiceVersion: commonKafkaGeneralConfig.ServiceVersion,
+			SeedBrokers:    commonKafkaGeneralConfig.SeedBrokers,
+			TLSConfig:      commonKafkaGeneralConfig.TLSConfig,
+			Username:       config.Kafka.Users.Data.Username,
+			Password:       string(config.Kafka.Users.Data.Password),
+		})
+		builder.SetProducerConfig(&kafka.ProducerConfig{})
+		builder.SetConsumerConfig(&kafka.ConsumerConfig{})
+		builder.SetConsumerGroupConfig(&kafka.ConsumerGroupConfig{
+			GroupID:         config.Kafka.GroupID,
+			InstanceID:      config.Application.InstanceName,
+			AutoCommitMarks: true,
+		})
+
+		client, err := kafka.NewClient(builder)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kafka data client: %w", err)
+		}
+		kafkaDataClient = client
+	}
 
 	return &StorageClients{
 		Elasticsearch: elasticsearchClient,
@@ -165,12 +221,8 @@ func CreateClients(config *config.Config, tlsConfig map[string]*tls.Config, logg
 		Nats:          natsClient,
 		Email:         emailClient,
 		Kafka: KafkaClients{
-			Admin:    nil, // @FIXME create kafka admin client
-			Producer: nil, // @FIXME create kafka admin client
-			Consumer: KafkaConsumerClients{
-				Individual: nil, // @FIXME create kafka admin client
-				Group:      nil, // @FIXME create kafka admin client
-			},
+			Admin: kafkaAdminClient,
+			Data:  kafkaDataClient,
 		},
 	}, nil
 }

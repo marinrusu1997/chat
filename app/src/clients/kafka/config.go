@@ -23,11 +23,11 @@ import (
 )
 
 type GeneralConfig struct {
-	ClientID               string        `validate:"required,alphanum,min=10,max=50"`
-	ServiceName            string        `validate:"required,alphanum,min=5,max=50"`
+	ClientID               string        `validate:"required,printascii,min=10,max=50"`
+	ServiceName            string        `validate:"required,printascii,min=5,max=50"`
 	ServiceVersion         string        `validate:"required,min=1,max=30"`
 	SeedBrokers            []string      `validate:"required,min=1,max=10,unique,dive,required,hostname_port"`
-	TLSConfig              *tls.Config   ``
+	TLSConfig              *tls.Config   `validate:"required"`
 	Username               string        `validate:"required_with=Password,required,min=5,max=50"`
 	Password               string        `validate:"required_with=Username,required,min=5,max=50"`
 	RequestTimeoutOverhead time.Duration `validate:"min=1000000000,max=15000000000" default:"5s"` // [1s, 15s], default 5s
@@ -42,7 +42,7 @@ type ProducerConfig struct {
 	MaxBufferedRecords    int                    `validate:"gte=1000,lte=1000000" default:"100000"`          // [1K, 1M], default 100K
 	MaxBufferedBytes      int                    `validate:"gte=1048576,lte=1073741824" default:"536870912"` // [1MB, 1GB], default 512MB
 	RequestTimeout        time.Duration          `validate:"min=1000000000,max=30000000000" default:"5s"`    // [1s, 30s], default 5s
-	RecordRetries         int                    `validate:"gte=1,lte=30" default:"5"`                       // [1, 30], default 10
+	RecordRetries         int                    `validate:"gte=1,lte=30" default:"5"`                       // [1, 30], default 5
 	UnknownTopicRetries   int                    `validate:"gte=0,lte=5" default:"1"`                        // [0, 5], default 1
 	ProducerLinger        time.Duration          `validate:"gte=-1,lte=10000000000" default:"50ms"`          // [-1, 10s], default 50ms (-1 = disabled)
 	RecordDeliveryTimeout time.Duration          `validate:"gte=10000000000,lte=300000000000" default:"30s"` // [10s, 5min], default 30s
@@ -58,15 +58,15 @@ type TransactionConfig struct {
 
 type ConsumerConfig struct {
 	MaxReadBytes           int32                           `validate:"gte=1024,lte=536870912" default:"104857600"` // [1KB, 512MB], default 100MB
-	FetchMaxWait           time.Duration                   `validate:"gte=500000000,lte=10000000000" default:"1s"` // [500ms, 10s], default 1s
-	FetchMinBytes          int32                           `validate:"gte=1024,lte=10485760" default:"51200"`      // [1KB, 10MB], default 50KB
+	FetchMaxWait           time.Duration                   `validate:"gte=500000000,lte=10000000000" default:"5s"` // [500ms, 10s], default 5s
+	FetchMinBytes          int32                           `validate:"gte=1024,lte=10485760" default:"102400"`     // [1KB, 10MB], default 100KB
 	FetchMaxBytes          int32                           `validate:"gte=1024,lte=104857600" default:"52428800"`  // [1KB, 100MB], default 50MB
 	FetchMaxPartitionBytes int32                           `validate:"gte=1024,lte=10485760" default:"2097152"`    // [1KB, 10MB], default 2MB
 	ConsumeStartOffset     *kgo.Offset                     ``                                                      // default AtStart
 	ConsumeResetOffset     *kgo.Offset                     ``                                                      // default AtStart
 	FetchIsolationLevel    *kgo.IsolationLevel             ``                                                      // default ReadUncommitted
 	ConsumePreferringLagFn kgo.PreferLagFn                 ``                                                      // default PreferLagAt(500)
-	MaxConcurrentFetches   int                             `validate:"gte=-1,lte=100" default:"10"`                // [-1, 100], default 10
+	MaxConcurrentFetches   int                             `validate:"gte=0,lte=100" default:"0"`                  // [-1, 100], default 0
 	ConsumeTopics          []string                        `validate:"unique"`
 	ConsumePartitions      map[string]map[int32]kgo.Offset ``
 	RegexConsumption       bool                            ``
@@ -78,7 +78,7 @@ type ConsumerGroupConfig struct {
 	Balancers            []kgo.GroupBalancer
 	SessionTimeout       time.Duration `validate:"gte=10000000000,lte=600000000000" default:"60s"` // [10s, 10min], default 60s
 	RebalanceTimeout     time.Duration `validate:"gte=10000000000,lte=60000000000" default:"60s"`  // [10s, 1min], default 60s
-	HeartbeatInterval    time.Duration `validate:"gte=5000000000,lte=15000000000" default:"5s"`    // [5s, 15s], default 5s
+	HeartbeatInterval    time.Duration `validate:"gte=5000000000,lte=15000000000" default:"10s"`   // [5s, 15s], default 10s
 	OnPartitionsRevoked  func(context.Context, *kgo.Client, map[string][]int32)
 	OnPartitionsAssigned func(context.Context, *kgo.Client, map[string][]int32)
 	OnPartitionsLost     func(context.Context, *kgo.Client, map[string][]int32)
@@ -87,7 +87,7 @@ type ConsumerGroupConfig struct {
 	DisableAutoCommit    bool
 	GreedyAutoCommit     bool
 	AutoCommitMarks      bool
-	AutoCommitInterval   time.Duration `validate:"gte=100000000,lte=10000000000" default:"1s"` // [100ms, 10s], default 1s
+	AutoCommitInterval   time.Duration `validate:"gte=100000000,lte=10000000000" default:"5s"` // [100ms, 10s], default 5s
 	AutoCommitCallback   func(*kgo.Client, *kmsg.OffsetCommitRequest, *kmsg.OffsetCommitResponse, error)
 }
 
@@ -113,7 +113,7 @@ func NewConfigurationBuilder(loggers *ConfigurationLoggers) ConfigurationBuilder
 }
 
 func (b *ConfigurationBuilder) SetGeneralConfig(config *GeneralConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
@@ -211,7 +211,7 @@ func (b *ConfigurationBuilder) SetGeneralConfig(config *GeneralConfig) bool {
 }
 
 func (b *ConfigurationBuilder) SetProducerConfig(config *ProducerConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 	if config.RequestTimeout*time.Duration(config.RecordRetries) > config.RecordDeliveryTimeout {
@@ -265,7 +265,7 @@ func (b *ConfigurationBuilder) SetProducerConfig(config *ProducerConfig) bool {
 }
 
 func (b *ConfigurationBuilder) SetTransactionConfig(config *TransactionConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
@@ -295,7 +295,7 @@ func (b *ConfigurationBuilder) SetTransactionConfig(config *TransactionConfig) b
 }
 
 func (b *ConfigurationBuilder) SetConsumerConfig(config *ConsumerConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
@@ -325,7 +325,7 @@ func (b *ConfigurationBuilder) SetConsumerConfig(config *ConsumerConfig) bool {
 		((config.ConsumeResetOffset != nil && b.setOption("ConsumeResetOffset", kgo.ConsumeResetOffset(*config.ConsumeResetOffset))) || true) &&
 		((config.FetchIsolationLevel != nil && b.setOption("FetchIsolationLevel", kgo.FetchIsolationLevel(*config.FetchIsolationLevel))) || true) &&
 		((config.ConsumePreferringLagFn != nil && b.setOption("ConsumePreferringLagFn", kgo.ConsumePreferringLagFn(config.ConsumePreferringLagFn))) || true) &&
-		((config.MaxConcurrentFetches > 0 && b.setOption("MaxConcurrentFetches", kgo.MaxConcurrentFetches(config.MaxConcurrentFetches))) || true) &&
+		((config.MaxConcurrentFetches >= 0 && b.setOption("MaxConcurrentFetches", kgo.MaxConcurrentFetches(config.MaxConcurrentFetches))) || true) &&
 		b.setOption("RecheckPreferredReplicaInterval", kgo.RecheckPreferredReplicaInterval(20*time.Minute)) &&
 		((topicsGiven && b.setOption("ConsumeTopics", kgo.ConsumeTopics(config.ConsumeTopics...))) || true) &&
 		((partitionsGiven && b.setOption("ConsumePartitions", kgo.ConsumePartitions(config.ConsumePartitions))) || true) &&
@@ -333,7 +333,7 @@ func (b *ConfigurationBuilder) SetConsumerConfig(config *ConsumerConfig) bool {
 }
 
 func (b *ConfigurationBuilder) SetConsumerGroupConfig(config *ConsumerGroupConfig) bool {
-	if !b.applyDefaultsAndValidate(&config) {
+	if !b.applyDefaultsAndValidate(config) {
 		return false
 	}
 
@@ -342,7 +342,7 @@ func (b *ConfigurationBuilder) SetConsumerGroupConfig(config *ConsumerGroupConfi
 			b.logger.Client.Warn().Msgf("Partitions revoked: %v", revoked)
 
 			if err := cl.CommitUncommittedOffsets(ctx); err != nil {
-				b.logger.Client.Error().Msgf("Blocking commit in OnPartitionsRevoked failed: %v", err)
+				b.logger.Client.Error().Err(err).Msg("Blocking commit in OnPartitionsRevoked failed.")
 			} else {
 				b.logger.Client.Info().Msg("Successfully committed uncommitted offsets before revocation.")
 			}
@@ -369,14 +369,14 @@ func (b *ConfigurationBuilder) SetConsumerGroupConfig(config *ConsumerGroupConfi
 			}
 
 			for _, groupResp := range resp.Groups {
-				if _, err := fmt.Fprintf(&sb, "  Group: %s, GroupError: %d\n", groupResp.Group, groupResp.ErrorCode); err != nil {
+				if _, err := fmt.Fprintf(&sb, "Group: %s, GroupError: %d\n", groupResp.Group, groupResp.ErrorCode); err != nil {
 					b.logger.Client.Error().Err(err).Msg("Failed to write group header")
 					return nil
 				}
 
 				for _, topicResp := range groupResp.Topics {
 					for _, partitionResp := range topicResp.Partitions {
-						if _, err := fmt.Fprintf(&sb, "    -> %s/%d: Offset=%d, Epoch=%d, Metadata=%q, PartitionError=%d\n",
+						if _, err := fmt.Fprintf(&sb, "\t-> T=%s P=%d: Offset=%d, Epoch=%d, Metadata=%q, PartitionError=%d\n",
 							topicResp.Topic,
 							partitionResp.Partition,
 							partitionResp.Offset,
@@ -397,14 +397,21 @@ func (b *ConfigurationBuilder) SetConsumerGroupConfig(config *ConsumerGroupConfi
 			}
 
 			for _, topicResp := range resp.Topics {
-				for _, partitionResp := range topicResp.Partitions {
-					_, err := fmt.Fprintf(&sb, "  -> %s/%d: Offset=%d, Epoch=%d, Metadata=%q, PartitionError=%d\n",
+				for idx, partitionResp := range topicResp.Partitions {
+					trailer := "\n"
+					if idx == len(topicResp.Partitions)-1 {
+						trailer = ""
+					}
+
+					_, err := fmt.Fprintf(&sb, "\t-> T=%s P=%d: Offset=%d, Epoch=%d, Metadata=%q, PartitionError=%d%s",
 						topicResp.Topic,
 						partitionResp.Partition,
 						partitionResp.Offset,
 						partitionResp.LeaderEpoch,
 						util.DereferenceString(partitionResp.Metadata),
-						partitionResp.ErrorCode)
+						partitionResp.ErrorCode,
+						trailer,
+					)
 					if err != nil {
 						b.logger.Client.Error().Err(err).Msg("Failed to write topic partition info")
 						return nil

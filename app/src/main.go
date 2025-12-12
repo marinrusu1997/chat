@@ -5,6 +5,7 @@ import (
 	"chat/src/clients/email"
 	"chat/src/clients/etcd"
 	"chat/src/clients/kafka"
+	"chat/src/clients/kafka/routing"
 	"chat/src/clients/nats"
 	"chat/src/clients/neo4j"
 	"chat/src/clients/postgresql"
@@ -27,7 +28,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// @FIXME: https://github.com/uber-go/guide/tree/master
+//	@FIXME:	https://github.com/uber-go/guide/tree/master
 
 func main() {
 	cfg, err := config.Load(config.LoadConfigOptions{
@@ -151,14 +152,15 @@ func main() {
 	clientsLifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
 		Services: map[string]lifecycle.ServiceLifecycle{
 			elasticsearch.PingTargetName: clients.Elasticsearch,
-			// kafka.PingTargetName:         clients.Kafka.Admin, @fixme enable later
-			neo4j.PingTargetName:      clients.Neo4j,
-			etcd.PingTargetName:       clients.Etcd,
-			postgresql.PingTargetName: clients.PostgreSQL,
-			redis.PingTargetName:      clients.Redis,
-			scylla.PingTargetName:     clients.ScyllaDB,
-			nats.PingTargetName:       clients.Nats,
-			email.PingTargetName:      clients.Email,
+			kafka.AdminClientName:        clients.Kafka.Admin,
+			kafka.DataClientName:         clients.Kafka.Data,
+			neo4j.PingTargetName:         clients.Neo4j,
+			etcd.PingTargetName:          clients.Etcd,
+			postgresql.PingTargetName:    clients.PostgreSQL,
+			redis.PingTargetName:         clients.Redis,
+			scylla.PingTargetName:        clients.ScyllaDB,
+			nats.PingTargetName:          clients.Nats,
+			email.PingTargetName:         clients.Email,
 		},
 		Logger: loggerFactory.Child("lifecycle.clients"),
 	})
@@ -173,14 +175,15 @@ func main() {
 	healthController, err := health.NewController(&health.ControllerConfig{
 		Dependencies: map[string]health.Pingable{
 			elasticsearch.PingTargetName: clients.Elasticsearch,
-			// kafka.PingTargetName:         clients.Kafka.Admin, @fixme enable later
-			neo4j.PingTargetName:      clients.Neo4j,
-			etcd.PingTargetName:       clients.Etcd,
-			postgresql.PingTargetName: clients.PostgreSQL,
-			redis.PingTargetName:      clients.Redis,
-			scylla.PingTargetName:     clients.ScyllaDB,
-			nats.PingTargetName:       clients.Nats,
-			email.PingTargetName:      clients.Email,
+			kafka.AdminClientName:        clients.Kafka.Admin,
+			kafka.DataClientName:         clients.Kafka.Data,
+			neo4j.PingTargetName:         clients.Neo4j,
+			etcd.PingTargetName:          clients.Etcd,
+			postgresql.PingTargetName:    clients.PostgreSQL,
+			redis.PingTargetName:         clients.Redis,
+			scylla.PingTargetName:        clients.ScyllaDB,
+			nats.PingTargetName:          clients.Nats,
+			email.PingTargetName:         clients.Email,
 		},
 		Logger: loggerFactory.Child("health.controller"),
 	})
@@ -204,7 +207,13 @@ func main() {
 	}
 	defer servicesLifecycleController.Stop(context.Background())
 
-	// @fixme remove me
+	//	@fixme	remove me
+	if err := routing.OrchestrateKafkaTest(
+		loggerFactory.ChildPtr("clients.kafka.example"), clients.Kafka.Admin, clients.Kafka.Data,
+	); err != nil {
+		panic(err)
+	}
+
 	msg := mail.NewMsg()
 	if err := msg.From("app@chat.com"); err != nil {
 		logger.Fatal().Err(err).Msgf("Failed to set email from address to '%s'", "app@chat.com")
@@ -231,7 +240,7 @@ func main() {
 	if failuresCount > 0 {
 		logger.Warn().Msgf("Failed to enqueue %d/%d emails", failuresCount, cfg.Email.QueueSize*2)
 	}
-	// @fixme remove me
+	//	@fixme	remove me
 
 	blockOnSignal(syscall.SIGINT, syscall.SIGTERM)
 }

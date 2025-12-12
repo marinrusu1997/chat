@@ -30,7 +30,7 @@ type CheckFrequencyConfig struct {
 }
 
 type ControllerConfig struct {
-	Dependencies   map[string]Pingable  `validate:"required,min=1,max=50,dive,keys,min=3,max=30,alphanum,lowercase,endkeys,required"`
+	Dependencies   map[string]Pingable  `validate:"required,min=1,max=50,dive,keys,min=3,max=30,printascii,lowercase,endkeys,required"`
 	CheckFrequency CheckFrequencyConfig `validate:"required"`
 	Logger         zerolog.Logger       `validate:"required"`
 }
