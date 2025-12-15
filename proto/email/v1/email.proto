@@ -1,0 +1,589 @@
+syntax = "proto3";
+
+package email.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ContentMode {
+  CONTENT_MODE_UNSPECIFIED = 0;
+  CONTENT_MODE_RAW = 1;
+  CONTENT_MODE_TEMPLATE = 2;
+}
+
+// EmailAddress represents an email address optionally accompanied by
+// a human-readable display name.
+//
+// This message is used for all address-bearing fields in an email
+// (e.g. From, To, Cc, Bcc, Reply-To). It models only the logical address
+// information and intentionally omits transport- or protocol-level
+// concerns such as encoding or formatting.
+//
+// The email address itself is required and validated using a lightweight
+// syntactic check. The optional display name, when present, provides
+// additional context for recipients but does not affect delivery.
+message EmailAddress {
+  // The mailbox address used for email delivery (for example,
+  // "user@example.com").
+  //
+  // This field is required and validated using a basic email-address
+  // syntax check. The validation is intentionally lightweight and does
+  // not attempt full RFC 5322 compliance.
+  string email = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.email = true
+  ];
+
+  // Optional human-readable display name associated with the email address
+  // (for example, "John Doe").
+  //
+  // When present, this value is typically rendered alongside the email
+  // address in the message headers. An empty string is not allowed; the
+  // name must contain at least one character.
+  optional string name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// RawContent represents an email body provided directly as literal content,
+// without using a rendering template.
+//
+// This message supports multiple representations of the same content,
+// most commonly plain text and HTML. When both representations are present,
+// the email delivery service is expected to construct a multipart/alternative
+// email and allow the email client to choose the preferred format.
+//
+// At least one of `text` or `html` must be provided. Providing both is
+// strongly recommended for accessibility, compatibility, and proper
+// fallback behavior across email clients.
+//
+// RawContent models intent only; it does not encode MIME structure or
+// transport-level details, which are handled by the email delivery service.
+message RawContent {
+  // Plain text representation of the email body.
+  //
+  // This field is typically used as a fallback for clients that do not
+  // support or choose not to render HTML content. If provided, it must
+  // contain at least one character.
+  string text = 1 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 65536
+  ];
+
+  // HTML representation of the email body.
+  //
+  // When provided, this content is expected to be valid HTML and may
+  // reference inline resources via content identifiers (CIDs).
+  // If present, it must be long enough to represent a meaningful HTML
+  // fragment (for example, "<a/>").
+  string html = 2 [
+    (buf.validate.field).string.min_len = 4,
+    (buf.validate.field).string.max_len = 262144
+  ];
+
+  // Validation invariant ensuring that at least one content representation
+  // is present. An email body must contain either plain text, HTML, or both.
+  option (buf.validate.message).cel = {
+    id: "raw_content_requires_text_or_html"
+    expression: "size(this.text) > 0 || size(this.html) > 0"
+  };
+}
+
+// TemplateContent describes an email body that is produced by rendering
+// a pre-defined template with a set of dynamic variables.
+//
+// This message does not contain rendered email content. Instead, it
+// expresses the intent to render a specific template identified by
+// `template_id`, optionally localized via `locale`, using the provided
+// key-value variables.
+//
+// Template resolution, localization, fallback behavior, and rendering
+// are responsibilities of the email delivery service. The Protobuf
+// schema intentionally models only the data contract, not the rendering
+// implementation.
+//
+// A TemplateContent message is mutually exclusive with raw email content
+// and is typically selected via a higher-level content discriminator.
+message TemplateContent {
+  // Logical identifier of the email template.
+  // This is used to resolve a concrete template implementation
+  // (e.g. filesystem, database, embedded assets) and is intentionally
+  // decoupled from filenames or paths.
+  //
+  // UUID ensures global uniqueness and stable references across services.
+  string template_id = 1 [(buf.validate.field).string.uuid = true];
+
+  // Optional locale tag used to select a localized variant of the template.
+  //
+  // When unset, the template resolver is expected to fall back to a
+  // default locale (e.g. "en-US").
+  //
+  // This value is treated as an opaque lookup key by the system.
+  // The validation pattern is a lightweight structural check inspired
+  // by BCP-47, but does not attempt full semantic validation.
+  optional string locale = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$"];
+
+  // Variables passed to the template during rendering.
+  //
+  // Keys represent template variable names, values are their rendered
+  // substitutions. Keys must be unique; duplicate keys on the wire
+  // are resolved according to Protobuf map semantics.
+  //
+  // The number and size of variables are bounded to prevent
+  // accidental payload bloat and abuse.
+  map<string, string> vars = 3 [
+    (buf.validate.field).map.max_pairs = 64,
+    (buf.validate.field).map.keys.string.min_len = 1,
+    (buf.validate.field).map.keys.string.max_len = 64,
+    (buf.validate.field).map.values.string.min_len = 1,
+    (buf.validate.field).map.values.string.max_len = 4096
+  ];
+}
+
+// Attachment represents binary content that is included in an email message,
+// either as a downloadable file or as an inline resource referenced from the
+// email body.
+//
+// The attachment content itself is not embedded in the message payload.
+// Instead, the email delivery service resolves `content_ref` at send time,
+// reads the referenced data, and attaches it to the email as a MIME part.
+//
+// Inline versus downloadable behavior is inferred from the presence of
+// `content_id`. When `content_id` is present, the attachment is treated as
+// inline and can be referenced from HTML content using a `cid:` URL.
+message Attachment {
+  // The filename as presented to the email recipient.
+  //
+  // This value is used in the Content-Disposition header and determines
+  // how the attachment is named when downloaded or displayed by the
+  // email client.
+  string file_name = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 256
+  ];
+
+  // Optional human-readable description of the attachment.
+  //
+  // This field maps to the MIME Content-Description header and is purely
+  // informational. It has no effect on delivery or rendering.
+  optional string file_description = 2 [
+    (buf.validate.field).string.min_len = 5,
+    (buf.validate.field).string.max_len = 512
+  ];
+
+  // MIME content type of the attachment.
+  //
+  // This value determines how email clients interpret and display the
+  // attachment (e.g. "application/pdf", "image/png").
+  string content_type = 3 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // Reference to the binary content of the attachment.
+  //
+  // This is an indirect reference (for example, a URI pointing to object
+  // storage or a local file). The referenced content is resolved by the
+  // email delivery service at send time and embedded directly into the
+  // email message.
+  string content_ref = 4 [
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // Optional Content-ID used to reference this attachment from HTML content.
+  //
+  // When present, the attachment is treated as an inline resource and can
+  // be referenced from the HTML body using a "cid:<content_id>" URL.
+  //
+  // When absent, the attachment is treated as a regular downloadable file.
+  optional string content_id = 5 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // Validation invariant restricting which attachments may be treated as
+  // inline resources.
+  //
+  // When a Content-ID is present, the attachment is considered inline and is
+  // expected to be referenced from HTML content using a "cid:" URL. Inline
+  // attachments must therefore be renderable by email clients when embedded
+  // directly into the message body.
+  //
+  // This rule enforces that only attachments with an image MIME type
+  // (i.e. content types starting with "image/") may be marked as inline.
+  // Non-image attachments are required to be sent as regular downloadable
+  // files without a Content-ID.
+  //
+  // The constraint intentionally does not attempt to validate specific image
+  // subtypes or guarantee that the referenced content is valid image data;
+  // such checks are the responsibility of the email delivery service.
+  option (buf.validate.message).cel = {
+    id: "inline_attachments_should_be_renderable"
+    expression: "!has(this.content_id) || this.content_type.startsWith('image/')"
+  };
+}
+
+// Header represents a custom email header to be added to the message.
+//
+// This message is intentionally limited to user-defined headers with the
+// "X-" prefix. Standard SMTP and MIME headers (such as "From", "To",
+// "Subject", or "Content-Type") are managed exclusively by the email
+// delivery service and must not be set through this mechanism.
+//
+// Header values are treated as opaque strings but are strictly validated
+// to prevent header injection, control characters, and other malformed
+// inputs that could compromise message integrity or security.
+message Header {
+  // Name of the custom header.
+  //
+  // The header name must start with the "X-" prefix and may contain only
+  // ASCII letters, digits, and hyphens. The length is bounded to ensure
+  // compliance with common email client and server limits.
+  //
+  // Examples:
+  //   - "X-Request-Id"
+  //   - "X-Trace-Token"
+  //   - "X-Feature-Flag"
+  string name = 1 [
+    (buf.validate.field).string.strict = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 64
+  ];
+
+  // One or more values associated with the header.
+  //
+  // Multiple values allow representing headers that may legally appear
+  // more than once in an email message or be logically grouped together.
+  // Duplicate values are disallowed to avoid ambiguity.
+  //
+  // Each value must be a non-empty, ASCII-only string containing at least
+  // one non-whitespace character. Length is bounded to prevent abuse and
+  // accidental payload bloat.
+  repeated string values = 2 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 8,
+    (buf.validate.field).repeated.unique = true,
+    (buf.validate.field).repeated.items = {
+      string: {
+        min_len: 1
+        max_len: 256
+        strict: true
+        pattern: "^.*\\S.*$"
+      }
+    }
+  ];
+}
+
+// InteractionMode describes how recipients and mail clients should treat
+// the message in terms of interactivity and automated responses.
+//
+// This enum expresses the sender’s intent regarding whether the message is
+// expected to receive human interaction or should be treated as an automated
+// notification. It is mapped by the email delivery service to appropriate
+// protocol-level headers that influence client behavior.
+//
+// This value affects client-side behavior only and does not guarantee that
+// automatic responses will be suppressed or generated.
+enum InteractionMode {
+  // Default value. This value is invalid and must not be used.
+  //
+  // Producers are required to explicitly specify an interaction mode to
+  // avoid ambiguous behavior and ensure consistent handling by the email
+  // delivery service.
+  INTERACTION_MODE_UNSPECIFIED = 0;
+
+  // Interactive, user-to-user or user-to-system communication.
+  // May trigger auto-replies such as out-of-office messages.
+  INTERACTION_MODE_INTERACTIVE = 1;
+
+  // Automated or system-generated communication.
+  // Should suppress automatic responses.
+  INTERACTION_MODE_AUTOMATED = 2;
+}
+
+// ImportanceLevel expresses the sender's intended urgency of the message.
+//
+// This value provides a hint to email clients about how prominently the
+// message should be presented to the recipient. It does not affect delivery
+// guarantees, transport priority, or spam filtering behavior.
+enum ImportanceLevel {
+  // Default value. This value is invalid and must not be used.
+  IMPORTANCE_LEVEL_UNSPECIFIED = 0;
+
+  // Indicates a normal level of importance.
+  //
+  // This is the default behavior and results in no importance-related headers
+  // being set on the message.
+  IMPORTANCE_LEVEL_NORMAL = 1;
+
+  // Indicates a low level of importance.
+  //
+  // The message may be deprioritized or visually deemphasized by email clients.
+  IMPORTANCE_LEVEL_LOW = 2;
+
+  // Indicates a high level of importance.
+  //
+  // The message may be highlighted or visually emphasized by email clients.
+  IMPORTANCE_LEVEL_HIGH = 3;
+
+  // Indicates that the message is explicitly non-urgent.
+  //
+  // This is semantically distinct from LOW and is typically used for
+  // informational messages that do not require timely action.
+  IMPORTANCE_LEVEL_NON_URGENT = 4;
+
+  // Indicates that the message is urgent and may require immediate attention.
+  //
+  // This value should be used sparingly, as excessive use may cause clients
+  // or users to ignore importance signals.
+  IMPORTANCE_LEVEL_URGENT = 5;
+}
+
+// Email represents an email message that needs to be sent.
+//
+// This message models the logical intent of an email, including recipients,
+// subject, content, attachments, and optional delivery hints. It intentionally
+// abstracts away transport-level details such as MIME structure, SMTP commands,
+// DKIM/SPF signing, and message serialization, which are the responsibility of
+// the email delivery service.
+//
+// Validation rules on this message enforce structural correctness and internal
+// consistency, but do not guarantee delivery or recipient behavior.
+message Email {
+  // Address of the sender.
+  //
+  // This value is used as the logical "From" address of the message and is
+  // required for delivery. The sending domain and authentication mechanisms
+  // (SPF, DKIM, DMARC) are handled by the email delivery infrastructure.
+  EmailAddress from = 1 [(buf.validate.field).required = true];
+
+  // Primary recipients of the email.
+  //
+  // At least one direct recipient is required. These addresses are visible to
+  // all other recipients.
+  repeated EmailAddress to = 2 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 50
+  ];
+
+  // Carbon-copy recipients.
+  //
+  // These recipients receive a copy of the message and are visible to all
+  // recipients. This field is optional and bounded to prevent abuse.
+  repeated EmailAddress cc = 3 [(buf.validate.field).repeated.max_items = 50];
+
+  // Blind carbon-copy recipients.
+  //
+  // These recipients receive a copy of the message but are not visible to
+  // other recipients. This field is optional and bounded to prevent abuse.
+  repeated EmailAddress bcc = 4 [(buf.validate.field).repeated.max_items = 50];
+
+  // Optional reply-to address.
+  //
+  // When present, replies from recipients should be directed to this address
+  // instead of the sender address. This field must not match the "from" address.
+  EmailAddress reply_to = 5;
+
+  // Optional list of addresses to which a Message Disposition Notification (MDN)
+  // request should be sent.
+  //
+  // When present, the email delivery service will add a
+  // "Disposition-Notification-To" header to the message, requesting that the
+  // recipient's email client notify the sender when the message is displayed
+  // or otherwise handled.
+  //
+  // MDNs are advisory only and are entirely under the control of the recipient's
+  // email client and user preferences. The presence of this field does not
+  // guarantee that a notification will be sent or received.
+  repeated EmailAddress mdn_to = 6 [(buf.validate.field).repeated.max_items = 3];
+
+  // Subject line of the email.
+  //
+  // This field is required and must contain a non-empty, human-readable summary
+  // of the message content. Length is bounded to ensure compatibility with
+  // common email clients and servers.
+  string subject = 7 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 256
+  ];
+
+  // Mode describing how the email body is provided.
+  //
+  // This value determines whether the message content is supplied as raw
+  // literal content or generated by rendering a template. The selected mode
+  // must be consistent with the corresponding content field.
+  ContentMode content_mode = 8 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum = {
+      defined_only: true
+      not_in: [0]
+    }
+  ];
+
+  // Raw literal content of the email body.
+  //
+  // This field must be present only when content_mode is RAW and must be absent
+  // when content_mode is TEMPLATE.
+  RawContent raw = 9;
+
+  // Template-based content of the email body.
+  //
+  // This field must be present only when content_mode is TEMPLATE and must be
+  // absent when content_mode is RAW.
+  TemplateContent template = 10;
+
+  // Optional list of attachments included with the email.
+  //
+  // Attachments are resolved and embedded by the email delivery service at
+  // send time. Inline attachments may be referenced from HTML content using
+  // Content-IDs.
+  repeated Attachment attachments = 11 [(buf.validate.field).repeated.max_items = 20];
+
+  // Optional list of custom headers to be added to the email.
+  //
+  // Only user-defined headers (for example, those prefixed with "X-") are
+  // supported. Standard protocol headers are managed exclusively by the
+  // email delivery service.
+  repeated Header headers = 12 [(buf.validate.field).repeated.max_items = 32];
+
+  // Specifies how the email should be treated in terms of interactivity and
+  // automated responses by recipients and mail clients.
+  //
+  // This field expresses whether the message is intended to be interactive
+  // (such as user-to-user communication) or automated (such as system
+  // notifications). The email delivery service maps this value to appropriate
+  // message headers that influence client behavior, such as suppression of
+  // automatic replies.
+  //
+  // This field does not affect delivery guarantees, spam filtering, or message
+  // priority, and must not be interpreted as a marketing or bulk-sending flag.
+  InteractionMode interaction_mode = 13 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum = {defined_only: true}
+  ];
+
+  // Indicates the intended urgency of the email message.
+  //
+  // This value is mapped by the email delivery service to appropriate
+  // importance- and priority-related headers that influence how mail
+  // clients present the message to recipients.
+  //
+  // This field does not affect delivery order, retry behavior, or
+  // spam filtering decisions.
+  ImportanceLevel importance = 14 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum = {defined_only: true}
+  ];
+
+  // Invariant: the selected content_mode must match the provided content.
+  //
+  // RAW mode requires raw content and forbids template content.
+  // TEMPLATE mode requires template content and forbids raw content.
+  option (buf.validate.message).cel = {
+    id: "content_mode_requires_matching_content"
+    expression: "(this.content_mode == 1 && has(this.raw) && !has(this.template)) || (this.content_mode == 2 && has(this.template) && !has(this.raw))"
+  };
+
+  // Invariant: the email must have at least one recipient across TO, CC, or BCC.
+  option (buf.validate.message).cel = {
+    id: "at_least_one_recipient"
+    expression: "size(this.to) + size(this.cc) + size(this.bcc) > 0"
+  };
+
+  // Invariant: inline attachments require HTML content.
+  //
+  // Attachments that specify a Content-ID are considered inline and may only be
+  // used when HTML content is present.
+  option (buf.validate.message).cel = {
+    id: "inline_attachments_require_html"
+    expression: "!this.attachments.exists(a, has(a.content_id)) || (this.content_mode == 1 && size(this.raw.html) > 0)"
+  };
+
+  // Invariant: no duplicate recipient email addresses across TO, CC, and BCC.
+  //
+  // This prevents ambiguity and unintended multiple deliveries to the same
+  // mailbox.
+  option (buf.validate.message).cel = {
+    id: "no_duplicate_recipients"
+    expression: "(this.to.map(a, a.email) + this.cc.map(a, a.email) + this.bcc.map(a, a.email)).unique()"
+  };
+
+  // Invariant: reply-to address must differ from the sender address.
+  option (buf.validate.message).cel = {
+    id: "reply_to_differs_from_from"
+    expression: "!has(this.reply_to) || this.reply_to.email != this.from.email"
+  };
+}
+
+// Source describes the origin of a SendEmailRequest.
+//
+// This information is used for observability, auditing, debugging, and
+// policy enforcement. It does not affect email content or delivery semantics.
+message Source {
+  // Logical name of the producing service.
+  //
+  // Examples:
+  //   - "auth-service"
+  //   - "billing-worker"
+  //   - "user-notifications"
+  string service = 1 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 64
+  ];
+
+  // Deployment environment of the producing service.
+  //
+  // Examples:
+  //   - "prod"
+  //   - "staging"
+  //   - "dev"
+  string environment = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 32
+  ];
+
+  // Optional distributed tracing identifier associated with the request.
+  //
+  // This value is propagated for correlation only and has no semantic meaning
+  // for email delivery.
+  string trace_id = 3 [(buf.validate.field).string.max_len = 128];
+}
+
+// SendEmailRequest represents a command to send a single email message.
+//
+// This message acts as an immutable envelope around the email payload,
+// providing identity, provenance, and timing information required for
+// reliable, observable, and idempotent email delivery.
+//
+// Validation rules on this message ensure structural correctness and
+// internal consistency, but do not guarantee successful delivery.
+message SendEmailRequest {
+  // Globally unique identifier for this send request.
+  //
+  // This identifier is used for idempotency, deduplication, tracing, and
+  // audit purposes. The email delivery service must treat messages with
+  // the same message_id as semantically identical.
+  string message_id = 1 [(buf.validate.field).string.uuid = true];
+
+  // Timestamp indicating when this request was created by the producer.
+  //
+  // This value is used for observability, ordering, and operational analysis.
+  // It does not affect scheduling or delivery semantics.
+  google.protobuf.Timestamp created_at = 2 [(buf.validate.field).required = true];
+
+  // Information about the service that produced this request.
+  //
+  // This field is required and is used for auditing, debugging, rate limiting,
+  // and policy enforcement. It has no effect on email content.
+  Source source = 3 [(buf.validate.field).required = true];
+
+  // Email payload describing what should be sent.
+  //
+  // This field contains the logical representation of the email, including
+  // recipients, content, attachments, and headers.
+  Email email = 4 [(buf.validate.field).required = true];
+}

@@ -52,6 +52,9 @@ email:
   from_address: "app@chat.com"
   num_workers: 10
   queue_size: 100
+  from: "no-reply@example.com"
+  organization: "Chat Inc."
+  user_agent: "ChatAppMailer/1.0"
 
 redis:
   addresses:
@@ -93,5 +96,5 @@ kafka:
       username: "chat_prod_cons"
       password: "cT5_mevs6MCdzo19H3xn"
   topics:
-    email_delivery: "email-delivery"
+    email_delivery: "email.outbound"
   group_id: "chat-app-group"

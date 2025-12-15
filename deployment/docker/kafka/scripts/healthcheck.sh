@@ -882,6 +882,8 @@ check_kafka_kraft_health() {
 check_kafka_kraft_health
 
 # 6 Defining ACL's
+declare -r EMAIL_OUTBOUND_TOPIC="email.outbound"
+
 define_acl() {
 	_define_acl_impl() {
 		local -r marker_file="/opt/kafka/config/acl_initialized.marker"
@@ -889,10 +891,7 @@ define_acl() {
 		if [ ! -f "$marker_file" ]; then
 			log_info "AclDefinition" "Marker file not found: ${marker_file}. Running ACL setup."
 
-			local -r user_inbox_topic="user-inbox"
-			local -r group_inbox_topic="group-inbox"
-			local -r system_alerts_topic="system-alerts"
-			local -r chat_messages_consumer_group_prefix="chat"
+			local -r chat_app_consumer_group_prefix="chat"
 
 			local -r schema_registry_schemas_topic="_csr_schemas"
 
@@ -914,31 +913,7 @@ define_acl() {
 
 			# 2. TOPIC management
 			kafka_exec kafka-acls \
-				--topic "$user_inbox_topic" \
-				--add \
-				--operation Create \
-				--operation Delete \
-				--operation Alter \
-				--operation Describe \
-				--operation DescribeConfigs \
-				--operation AlterConfigs \
-				--allow-host '*' \
-				--allow-principal "$chat_admin_principal"
-
-			kafka_exec kafka-acls \
-				--topic "$group_inbox_topic" \
-				--add \
-				--operation Create \
-				--operation Delete \
-				--operation Alter \
-				--operation Describe \
-				--operation DescribeConfigs \
-				--operation AlterConfigs \
-				--allow-host '*' \
-				--allow-principal "$chat_admin_principal"
-
-			kafka_exec kafka-acls \
-				--topic "$system_alerts_topic" \
+				--topic "$EMAIL_OUTBOUND_TOPIC" \
 				--resource-pattern-type LITERAL \
 				--add \
 				--operation Create \
@@ -952,7 +927,7 @@ define_acl() {
 
 			# 3. GROUP management
 			kafka_exec kafka-acls \
-				--group "$chat_messages_consumer_group_prefix" \
+				--group "$chat_app_consumer_group_prefix" \
 				--resource-pattern-type PREFIXED \
 				--add \
 				--operation Read \
@@ -967,25 +942,7 @@ define_acl() {
 			local -r chat_prod_cons_principal="User:chat_prod_cons"
 			# 1. TOPIC access
 			kafka_exec kafka-acls \
-				--topic "$user_inbox_topic" \
-				--add \
-				--operation Read \
-				--operation Write \
-				--operation Describe \
-				--allow-host '*' \
-				--allow-principal "$chat_prod_cons_principal"
-
-			kafka_exec kafka-acls \
-				--topic "$group_inbox_topic" \
-				--add \
-				--operation Read \
-				--operation Write \
-				--operation Describe \
-				--allow-host '*' \
-				--allow-principal "$chat_prod_cons_principal"
-
-			kafka_exec kafka-acls \
-				--topic "$system_alerts_topic" \
+				--topic "$EMAIL_OUTBOUND_TOPIC" \
 				--resource-pattern-type LITERAL \
 				--add \
 				--operation Read \
@@ -1003,7 +960,7 @@ define_acl() {
 
 			# 2. GROUP access
 			kafka_exec kafka-acls \
-				--group "$chat_messages_consumer_group_prefix" \
+				--group "$chat_app_consumer_group_prefix" \
 				--resource-pattern-type PREFIXED \
 				--add \
 				--operation Read \
@@ -1069,5 +1026,41 @@ define_acl() {
 	) 99>"/tmp/$CFG_SCRIPT_HASH-${FUNCNAME[0]}-lock"
 }
 define_acl
+
+# 7 Define Topics
+define_topics() {
+	_define_topics_impl() {
+		local -r marker_file="/opt/kafka/config/topics_initialized.marker"
+
+		if [ ! -f "$marker_file" ]; then
+			log_info "TopicsDefinition" "Marker file not found: ${marker_file}. Running Topics setup."
+
+			kafka_exec kafka-topics \
+				--create \
+				--topic "$EMAIL_OUTBOUND_TOPIC" \
+				--partitions 12 \
+				--replication-factor 3 \
+				--config cleanup.policy=compact \
+				--config min.insync.replicas=2 \
+				--config retention.ms=604800000 \
+				--if-not-exists
+
+			touch "${marker_file}"
+			log_info "TopicsDefinition" "Topics setup complete. Marker file created."
+		else
+			log_debug "TopicsDefinition" "Marker file found. Skipping Topics setup."
+		fi
+
+		log_info "TopicsDefinition" "Current Topics:"
+		kafka_exec kafka-topics --list
+	}
+
+	(
+		log_debug "TopicsDefinition" "Waiting to acquire lock..."
+		flock 100 || log_fatal "TopicsDefinition" "❌  Failed to acquire lock."
+		_define_topics_impl
+	) 100>"/tmp/$CFG_SCRIPT_HASH-${FUNCNAME[0]}-lock"
+}
+define_topics
 
 log_info "HealthCheck" "$(format_text "Kafka cluster is healthy" "bold" "italic" "underline" "green")"
