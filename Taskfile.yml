@@ -3,6 +3,7 @@ version: '3'
 vars:
   # --- Go and Project Paths ---
   SRC_DIR: './app/src'
+  GEN_DIR: '{{.SRC_DIR}}/gen'
   GOBIN_DIR: '{{.USERPROFILE}}\go\bin'
 
   # --- sqlc Tool Configuration ---
@@ -13,7 +14,10 @@ vars:
   SQLC_URL: 'https://github.com/sqlc-dev/sqlc/releases/download/v{{.SQLC_VERSION}}/{{.SQLC_ZIP}}'
   SQLC_SCHEMA_FILE: './deployment/docker/postgresql/scripts/init.sql'
   SQLC_QUERIES_FILE: './deployment/docker/postgresql/scripts/queries.sql'
-  SQLC_GEN_CODE_DIR: '{{.SRC_DIR}}/postgres/gen'
+  SQLC_GEN_CODE_DIR: '{{.GEN_DIR}}/postgres'
+
+  # --- Buf Tool Configuration ---
+  BUF_GEN_CODE_DIR: '{{.GEN_DIR}}/proto'
 
   # --- schemagen Tool Configuration ---
   SCHEMAGEN_CLUSTER: '127.0.0.1:19041'
@@ -78,6 +82,66 @@ tasks:
     cmds:
       - |
         reflex --start-service -r '\.sql$' --watch-dir ./deployment/docker/postgresql/scripts -- sh -c 'task sqlc:generate && echo "✅ sqlc generated successfully at $(date -u)"'
+
+  tools:protoc:
+    desc: 'Install protoc (Protocol Buffers compiler) CLI tool'
+    status:
+      - 'protoc --version'
+    platforms:
+      - windows
+      - linux
+      - darwin
+    cmds:
+      - |
+        {{if eq OS "windows"}}
+        choco install protoc -y
+        {{else if eq OS "darwin"}}
+        brew install protobuf
+        {{else if eq OS "linux"}}
+        sudo apt-get update && sudo apt-get install -y protobuf-compiler
+        {{end}}
+
+  tools:protoc-gen-go:
+    desc: 'Install protoc-gen-go plugin for Go code generation from Protobuf files'
+    status:
+      - 'protoc-gen-go --version'
+    cmds:
+      - go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+
+  tools:protoc-gen-go-grpc:
+    desc: 'Install protoc-gen-go-grpc plugin for Go gRPC code generation from Protobuf files'
+    status:
+      - 'protoc-gen-go-grpc --version'
+    cmds:
+      - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+  tools:buf:
+    desc: "Install buf CLI tool for Protobuf management"
+    vars:
+      BUF_VERSION: "v1.61.0"
+    deps:
+      - tools:protoc
+      - tools:protoc-gen-go
+      - tools:protoc-gen-go-grpc
+    status:
+      - 'buf --version'
+    cmds:
+      - go install github.com/bufbuild/buf/cmd/buf@{{.BUF_VERSION}}
+
+  proto:gen:
+    desc: 'Generate Go code from Protobuf definitions using buf.'
+    deps:
+      - tools:buf
+    cmds:
+      - buf lint
+      - buf generate
+    sources:
+      - './proto/**/*.proto'
+      - 'buf.yaml'
+      - 'buf.gen.yaml'
+    generates:
+      - '{{.BUF_GEN_CODE_DIR}}'
+    method: checksum
 
   tools:schemagen:
     desc: 'Downloads and installs the schemagen binary if not already present.'

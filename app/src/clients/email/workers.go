@@ -30,11 +30,11 @@ type healthRequest struct {
 }
 
 type workerPool struct {
-	requests  chan Request
-	workers   []*worker
-	logger    *zerolog.Logger
-	running   atomic.Bool
-	runningWg sync.WaitGroup
+	requestsQueue chan Request
+	workers       []*worker
+	logger        *zerolog.Logger
+	running       atomic.Bool
+	runningWg     sync.WaitGroup
 }
 
 type WorkerPoolOptions struct {
@@ -49,9 +49,9 @@ func newWorkerPool(opts WorkerPoolOptions) *workerPool {
 	opts.SMTPClientOptions.TLSConfig.ServerName = opts.SMTPClientOptions.Host
 
 	pool := &workerPool{
-		requests: make(chan Request, opts.QueueSize),
-		workers:  make([]*worker, opts.NumWorkers),
-		logger:   opts.Logger,
+		requestsQueue: make(chan Request, opts.QueueSize),
+		workers:       make([]*worker, opts.NumWorkers),
+		logger:        opts.Logger,
 	}
 
 	for i := uint8(0); i < opts.NumWorkers; i++ { //nolint:intrange // uint8 is sufficient for number of workers
@@ -89,7 +89,7 @@ func (p *workerPool) Start(ctx context.Context) error {
 	// Assign job processing goroutines
 	for _, worker := range p.workers {
 		p.runningWg.Go(func() {
-			worker.process(p.requests)
+			worker.drainRequestsQueue(p.requestsQueue)
 		})
 	}
 
@@ -102,7 +102,7 @@ func (p *workerPool) Stop() {
 		p.logger.Warn().Msg("worker pool is already stopped")
 		return
 	}
-	close(p.requests)
+	close(p.requestsQueue)
 	p.runningWg.Wait()
 }
 
@@ -111,7 +111,7 @@ func (p *workerPool) Submit(request Request) error {
 		return ErrWorkerPoolNotRunning
 	}
 
-	p.requests <- request
+	p.requestsQueue <- request
 
 	if request.Response == nil {
 		return nil
@@ -153,7 +153,7 @@ func (p *workerPool) Healthy(ctx context.Context) error {
 	return errors.New(builder.String()) //nolint:err113 // we are good here
 }
 
-func (w *worker) process(requests <-chan Request) {
+func (w *worker) drainRequestsQueue(requests <-chan Request) {
 	for {
 		select {
 		case request := <-w.health:

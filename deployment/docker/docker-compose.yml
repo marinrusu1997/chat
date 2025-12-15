@@ -2296,6 +2296,7 @@ services:
       - ./chat-app/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
       # Config
       - ./chat-app/config.yaml:/etc/chat/config.yaml:ro
+      - ./chat-app/templates/:/etc/chat/templates/:ro
       # Certificates
       ## Own
       - ./cert-generator/output/ca/root.crt:/etc/chat/certs/app/trusted/public.crt:ro

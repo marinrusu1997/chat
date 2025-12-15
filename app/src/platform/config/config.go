@@ -73,6 +73,10 @@ type EmailConfig struct {
 	FromAddress       string `koanf:"from_address" validate:"required,email"`
 	NumWorkers        uint8  `koanf:"num_workers" validate:"required,min=1,max=100"`
 	QueueSize         uint16 `koanf:"queue_size" validate:"required,min=1,max=1000"`
+	From              string `koanf:"from" validate:"required,email"`
+	Organization      string `koanf:"organization" validate:"required,min=2,max=100,printascii"`
+	UserAgent         string `koanf:"user_agent" validate:"required,min=4,max=100,printascii"`
+	TemplatesLocation string `koanf:"templates_location" validate:"required,min=4,max=256,dirpath"`
 }
 
 type KafkaConfig struct {

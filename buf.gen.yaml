@@ -1,0 +1,20 @@
+version: v2
+
+clean: true
+
+inputs:
+  - directory: proto
+
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.5
+    out: ./app/src/gen/proto
+    opt: paths=source_relative
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/marinrusu1997/chat/app/src/gen/proto
+  disable:
+    - file_option: go_package
+      module: buf.build/bufbuild/protovalidate

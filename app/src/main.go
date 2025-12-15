@@ -11,21 +11,25 @@ import (
 	"chat/src/clients/postgresql"
 	"chat/src/clients/redis"
 	"chat/src/clients/scylla"
+	emailv1 "chat/src/gen/proto/email/v1"
 	"chat/src/platform/config"
 	"chat/src/platform/health"
 	"chat/src/platform/lifecycle"
 	"chat/src/platform/logging"
 	"chat/src/platform/security"
 	"chat/src/platform/state"
+	emailsvc "chat/src/services/email"
 	"chat/src/services/presence"
 	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/wneessen/go-mail"
+	"github.com/google/uuid"
 	"go.yaml.in/yaml/v3"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 //	@FIXME:	https://github.com/uber-go/guide/tree/master
@@ -193,9 +197,40 @@ func main() {
 	healthController.Start()
 	defer healthController.Stop()
 
+	kafkaConsumerRouter, err := routing.NewConsumerRouter(&routing.ConsumerRouterOptions{
+		Client: clients.Kafka.Data,
+		Logger: loggerFactory.ChildPtr("kafka.consumer.router"),
+	})
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create kafka consumer router")
+	}
+
+	services := state.Services{
+		Presence: presence.NewService(clients.Redis, clients.Nats, loggerFactory.ChildPtr("services.presence")),
+		Email: emailsvc.NewService(&emailsvc.ServiceOptions{
+			Clients: emailsvc.ServiceClientsOptions{
+				Email: clients.Email,
+				Kafka: clients.Kafka.Data,
+			},
+			EmailBuild: emailsvc.ServiceEmailBuildOptions{
+				From:         cfg.Email.From,
+				Organization: cfg.Email.Organization,
+				UserAgent:    cfg.Email.UserAgent,
+				DKIMCert:     &tlsConfigs.Global.Certificates[0],
+			},
+			KafkaDelivery: emailsvc.ServiceKafkaDeliveryOptions{
+				Topic:  cfg.Kafka.Topics.EmailDelivery,
+				Router: kafkaConsumerRouter,
+			},
+			TemplatesLocation: cfg.Email.TemplatesLocation,
+			Logger:            loggerFactory.ChildPtr("services.email"),
+		}),
+	}
+
 	servicesLifecycleController, err := lifecycle.NewController(&lifecycle.ControllerOptions{
 		Services: map[string]lifecycle.ServiceLifecycle{
-			"presence": presence.NewService(clients.Redis, clients.Nats, loggerFactory.ChildPtr("services.presence")),
+			"presence": services.Presence,
+			"email":    services.Email,
 		},
 		Logger: loggerFactory.Child("lifecycle.services"),
 	})
@@ -207,38 +242,53 @@ func main() {
 	}
 	defer servicesLifecycleController.Stop(context.Background())
 
+	if err := kafkaConsumerRouter.Start(); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to start kafka consumer router")
+	}
+	defer kafkaConsumerRouter.Stop()
+
 	//	@fixme	remove me
-	if err := routing.OrchestrateKafkaTest(
+	/*if err := routing.OrchestrateKafkaTest(
 		loggerFactory.ChildPtr("clients.kafka.example"), clients.Kafka.Admin, clients.Kafka.Data,
 	); err != nil {
 		panic(err)
-	}
+	}*/
 
-	msg := mail.NewMsg()
-	if err := msg.From("app@chat.com"); err != nil {
-		logger.Fatal().Err(err).Msgf("Failed to set email from address to '%s'", "app@chat.com")
-	}
-	if err := msg.To("user@chat.com"); err != nil {
-		logger.Fatal().Err(err).Msgf("Failed to set email to address to '%s'", "user@chat.com")
-	}
-	msg.Subject("Hello")
-	msg.SetBodyString(mail.TypeTextPlain, "This is a test email.")
-
-	failuresCount := 0
-	for i := 0; i < int(cfg.Email.QueueSize*2); i++ {
-		err := clients.Email.Send(email.Request{
-			SendOptions: email.SendEmailOptions{
-				Email: msg,
+	emailRequest := emailv1.SendEmailRequest{
+		MessageId: uuid.New().String(),
+		CreatedAt: timestamppb.New(time.Now().UTC()),
+		Source: &emailv1.Source{
+			Service:     "auth-service",
+			Environment: "prod",
+			TraceId:     "a1b2c3",
+		},
+		Email: &emailv1.Email{
+			To: []*emailv1.EmailAddress{
+				{Email: "user@example.com"},
 			},
-			Response: make(chan error, 1),
-		})
+			Subject:     "Welcome to Example App",
+			ContentMode: emailv1.ContentMode_CONTENT_MODE_TEMPLATE,
+			/*Raw: &emailv1.RawContent{
+				Text: "Welcome to Example App!",
+				Html: "<p>Welcome to <strong>Example App</strong>!</p>",
+			},*/
+			Template: &emailv1.TemplateContent{
+				TemplateId: "message",
+				// Locale:     proto.String("fr"),
+				Vars: map[string]string{
+					"NAME": "Alice",
+				},
+			},
+			InteractionMode: emailv1.InteractionMode_INTERACTION_MODE_AUTOMATED,
+			Importance:      emailv1.ImportanceLevel_IMPORTANCE_LEVEL_NORMAL,
+		},
+	}
+
+	for i := 0; i < int(cfg.Email.QueueSize*2); i++ {
+		err := services.Email.Send(context.Background(), &emailRequest)
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to enqueue email")
-			failuresCount++
 		}
-	}
-	if failuresCount > 0 {
-		logger.Warn().Msgf("Failed to enqueue %d/%d emails", failuresCount, cfg.Email.QueueSize*2)
 	}
 	//	@fixme	remove me
 
